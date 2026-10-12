@@ -1,0 +1,3135 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>서울시 임금 정산 관리 시스템</title>
+    <!-- SheetJS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- html2pdf.js CDN (PDF 저장용) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- JSZip CDN (일괄 ZIP 다운로드용) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #0d6efd;
+            --primary-hover: #0b5ed7;
+            --success-color: #198754;
+            --info-color: #0dcaf0;
+            --bg-color: #f8f9fa;
+            --border-color: #ced4da;
+            --accent-border: #0d6efd;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 8px;
+            background-color: var(--bg-color);
+            color: #212529;
+            font-size: 11px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 100%;
+            margin: 0 auto;
+            background: #fff;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .header-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 4px;
+        }
+
+        .header-title h1 {
+            font-size: 15px;
+            margin: 0;
+            color: #1e293b;
+        }
+
+        .upload-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .upload-zone {
+            border: 1.5px dashed var(--primary-color);
+            background: #f0f7ff;
+            padding: 4px 6px;
+            text-align: center;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .upload-zone.manager-zone {
+            border-color: var(--success-color);
+            background: #f0fff4;
+        }
+
+        .download-zone {
+            background-color: var(--success-color);
+            color: #ffffff;
+            border: 1px solid #146c43;
+            padding: 3px 5px;
+            text-align: center;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .download-zone:hover { background-color: #146c43; }
+        .download-zone p { margin: 0; font-weight: bold; font-size: 10px; color: #ffffff; }
+        .download-zone span { font-size: 8.5px; color: #e8f5e9; display: block; margin-top: 1px; }
+
+        .upload-zone:hover { background: #e2f0ff; }
+        .upload-zone.manager-zone:hover { background: #dcffe4; }
+
+        .upload-zone p { margin: 0; font-weight: bold; font-size: 10.5px; color: var(--primary-color); }
+        .upload-zone.manager-zone p { color: var(--success-color); }
+        .upload-zone span { font-size: 9px; color: #6c757d; display: block; margin-top: 1px; }
+
+        .config-panel {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            padding: 5px 10px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            flex-wrap: nowrap;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 10.5px;
+            gap: 10px;
+        }
+        .config-panel label { font-weight: bold; color: #334155; white-space: nowrap; }
+        .config-panel select, .config-panel input {
+            padding: 2px 5px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 10.5px;
+            background: #fff;
+        }
+
+        .filter-section {
+            background: #f1f5f9;
+            border: 1px solid var(--border-color);
+            padding: 6px 8px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .filter-group label {
+            font-weight: 600;
+            color: #475569;
+            font-size: 10.5px;
+        }
+
+        .filter-input, .filter-select {
+            padding: 2px 4px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 10.5px;
+            background-color: #fff;
+        }
+
+        .filter-input { width: 85px; }
+        .filter-select { min-width: 90px; }
+
+        .search-count-badge {
+            background-color: #e2e8f0;
+            color: #1e293b;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 10.5px;
+        }
+
+        .summary-dashboard {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-left: 3px solid var(--primary-color);
+            padding: 4px 6px;
+            border-radius: 4px;
+            flex: 1;
+            min-width: 85px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .card:hover {
+            background-color: #f1f5f9;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .card.accent { border-left-color: var(--success-color); }
+        .card.warning { border-left-color: #fd7e14; }
+        .card.danger { border-left-color: #dc3545; }
+        .card.info-report { border-left-color: #0dcaf0; background-color: #e0f7fa; }
+        .card.info-payslip { border-left-color: #6741d9; background-color: #f3f0ff; }
+        .card.info-transport { border-left-color: #d6336c; background-color: #fff0f3; }
+
+        .card .title { font-size: 9px; font-weight: bold; color: #334155; margin-bottom: 1px; white-space: nowrap; }
+        .card .val { font-size: 11.5px; font-weight: bold; color: #0f172a; }
+
+        .table-wrapper {
+            overflow-x: auto;
+            max-height: 70vh;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10.5px;
+            table-layout: auto;
+        }
+
+        th, td {
+            border: 1px solid #cbd5e1;
+            padding: 3px 2px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #f8fafc;
+            color: #334155;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            font-weight: 600;
+            white-space: normal !important;
+            word-break: keep-all;
+            line-height: 1.15;
+            vertical-align: middle;
+            font-size: 10px;
+        }
+
+        td {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-weight: normal; 
+        }
+
+        tr:hover { background-color: #f1f5f9; }
+        .text-right { text-align: right; }
+        .text-red { color: #dc3545 !important; font-weight: normal !important; }
+
+        .col-manager-type { max-width: 45px !important; width: 45px; }
+        .col-manager-name { min-width: 80px !important; }
+        .col-user-name { min-width: 80px !important; }
+        .col-datetime-compact { max-width: 70px !important; width: 70px; padding: 2px 1px !important; font-size: 10px; letter-spacing: -0.3px; }
+        .col-cancel-time { max-width: 70px !important; width: 70px; padding: 2px 1px !important; font-size: 10px; letter-spacing: -0.3px; }
+        .col-wide-amount { min-width: 80px !important; }
+
+        .col-service-key {
+            max-width: 65px !important;
+            font-size: 9.5px;
+            font-weight: bold;
+            background-color: #f8fafc;
+        }
+
+        .border-section-left { border-left: 2px solid var(--accent-border) !important; }
+        .border-section-right { border-right: 2px solid var(--accent-border) !important; }
+
+        .badge-cancel { background-color: #ffe3e3; color: #dc3545; padding: 1px 3px; border-radius: 3px; font-size: 9.5px; }
+        .badge-unassigned { background-color: #fff3bf; color: #f59f00; padding: 1px 3px; border-radius: 3px; font-size: 9.5px; }
+        .badge-free { background-color: #ffe3e3; color: #dc3545; padding: 1px 3px; border-radius: 3px; font-weight: bold; font-size: 9.5px; }
+        .badge-paid { background-color: #e7f5ff; color: #0d6efd; padding: 1px 3px; border-radius: 3px; font-weight: bold; font-size: 9.5px; }
+        
+        .badge-sub-off { background-color: #e9ecef; color: #495057; padding: 1px 3px; border-radius: 3px; font-size: 9.5px; font-weight: bold; }
+
+        .badge-manager-sangsi { background-color: #ffe3e3; color: #d6336c; font-weight: bold; padding: 1px 4px; border-radius: 3px; font-size: 9.5px; }
+        .badge-manager-maeryeok { background-color: #d3f9d8; color: #2b8a3e; font-weight: bold; padding: 1px 4px; border-radius: 3px; font-size: 9.5px; }
+        .badge-manager-noin { background-color: #e9ecef; color: #495057; font-weight: bold; padding: 1px 4px; border-radius: 3px; font-size: 9.5px; }
+        .badge-manager-part { background-color: #f3f0ff; color: #6741d9; font-weight: bold; padding: 1px 4px; border-radius: 3px; font-size: 9.5px; }
+
+        .col-cancel-type {
+            max-width: 40px !important;
+            font-size: 9.5px;
+            padding: 1px !important;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: #fff;
+            width: 90vw;
+            max-width: 1150px;
+            height: 90vh;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+            margin-bottom: 12px;
+        }
+        .modal-header h2 { margin: 0; font-size: 17px; color: #1e293b; }
+        .close-btn {
+            background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b;
+        }
+        
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .report-section-title {
+            font-size: 12px;
+            font-weight: bold;
+            color: #1e293b;
+            margin: 14px 0 6px 0;
+            border-left: 3px solid var(--primary-color);
+            padding-left: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .report-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .report-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 8px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .report-item .r-title { font-size: 10px; color: #64748b; font-weight: bold; margin-bottom: 3px; }
+        .report-item .r-val { font-size: 12.5px; color: #0f172a; font-weight: bold; }
+
+        .report-table-wrapper {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            margin-bottom: 6px;
+        }
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10.5px;
+        }
+        .report-table th, .report-table td {
+            border: 1px solid #cbd5e1;
+            padding: 4px 5px;
+            text-align: center;
+        }
+        .report-table th {
+            background-color: #f1f5f9;
+            position: sticky;
+            top: 0;
+            z-index: 5;
+        }
+
+        .vertical-chart-section {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 12px;
+        }
+        .vertical-chart-container {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-around;
+            height: 120px;
+            border-bottom: 2px solid #cbd5e1;
+            padding-top: 12px;
+            gap: 5px;
+        }
+        .v-bar-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+            justify-content: flex-end;
+        }
+        .v-bar-value {
+            font-size: 8.5px;
+            font-weight: bold;
+            color: #475569;
+            margin-bottom: 2px;
+            white-space: nowrap;
+        }
+        .v-bar-pillar {
+            width: 100%;
+            max-width: 25px;
+            background-color: #3b82f6;
+            border-radius: 3px 3px 0 0;
+            transition: height 0.3s;
+        }
+        .v-bar-pillar.green { background-color: #10b981; }
+        .v-bar-label {
+            font-size: 9px;
+            font-weight: bold;
+            color: #1e293b;
+            margin-top: 4px;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .report-footer-btns {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 12px;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 10px;
+        }
+
+        .payslip-sheet {
+            background: #fff;
+            padding: 18px;
+            width: 100%;
+            max-width: 750px;
+            margin: 0 auto;
+            font-size: 10.5px;
+            color: #000;
+        }
+        .payslip-title { text-align: center; font-size: 17px; font-weight: bold; margin-bottom: 12px; letter-spacing: 1px; }
+        .payslip-info-table, .payslip-sub-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+        .payslip-info-table th, .payslip-info-table td,
+        .payslip-sub-table th, .payslip-sub-table td {
+            border: 1px solid #333;
+            padding: 4px 5px;
+            text-align: center;
+        }
+        .payslip-info-table th { background-color: #f1f5f9; width: 15%; font-weight: bold; }
+        .payslip-info-table td { width: 35%; text-align: left; padding-left: 6px; }
+        .payslip-sub-table th { background-color: #f1f5f9; font-weight: bold; }
+        .payslip-section-label { font-weight: bold; margin: 8px 0 3px 0; font-size: 11.5px; }
+
+        .timesheet-sheet {
+            background: #fff;
+            padding: 12px;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            font-size: 10px;
+            color: #000;
+        }
+        .col-duration-bg { background-color: #e0f7fa !important; }
+
+        .transport-sheet {
+            background: #fff;
+            padding: 15px;
+            width: 100%;
+            max-width: 820px;
+            margin: 0 auto;
+            font-size: 10px;
+            color: #000;
+        }
+        .transport-title {
+            text-align: center;
+            font-size: 17px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+        }
+        .transport-header-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+        .transport-header-table th, .transport-header-table td {
+            border: 1px solid #333;
+            padding: 5px 6px;
+            text-align: center;
+            vertical-align: middle;
+        }
+        .transport-header-table th {
+            background-color: #f8fafc;
+            font-weight: bold;
+        }
+        .transport-sub-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .transport-sub-table th, .transport-sub-table td {
+            border: 1px solid #333;
+            padding: 4px 3px;
+            text-align: center;
+            font-size: 9.5px;
+        }
+        .transport-sub-table th {
+            background-color: #f1f5f9;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-title">
+        <h1>🏛️ 서울시 임금 정산 관리 시스템</h1>
+        <span style="color: #64748b; font-size: 10.5px;">서브온(Serveon) 정산 시스템</span>
+    </div>
+
+    <!-- 📌 상단 업로드 및 다운로드 그리드 -->
+    <div class="upload-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+        <div class="upload-zone" onclick="document.getElementById('admin-file-input').click()">
+            <p>1. 📄 어드민 정산 엑셀 파일 업로드</p>
+            <span id="admin-file-status">클릭하여 파일(.xlsx) 선택</span>
+            <input type="file" id="admin-file-input" accept=".xlsx, .xls, .csv" style="display:none;">
+        </div>
+
+        <div class="upload-zone manager-zone" onclick="document.getElementById('manager-file-input').click()">
+            <p>2. 👥 매니저 정보 엑셀 파일 업로드</p>
+            <span id="manager-file-status">상시/매력/노인 명단 매핑 파일</span>
+            <input type="file" id="manager-file-input" accept=".xlsx, .xls, .csv" style="display:none;">
+        </div>
+
+        <div class="download-zone" onclick="exportToExcel()">
+            <p>📥 필터링 결과 엑셀 다운로드</p>
+            <span>현재 조회된 데이터 파일 저장</span>
+        </div>
+    </div>
+
+    <!-- 📌 공휴일 수동 추가 및 정산 기준 연도 선택 1개 행 통합 패널 -->
+    <div class="config-panel" id="config-panel">
+        <div style="display: flex; align-items: center; gap: 5px;">
+            <label style="color:#b25900;">⚙ 공휴일 추가:</label>
+            <input type="date" id="manual-holiday-date" class="filter-input" style="width: 115px;">
+            <input type="text" id="manual-holiday-name" class="filter-input" placeholder="휴일 명칭 (예: 임시공휴일)" style="width: 130px;">
+            <button class="filter-select" style="background:#ff9800; color:#fff; font-weight:bold; border:none; padding:3px 8px; cursor:pointer; border-radius:4px;" onclick="addManualHoliday()">휴일 등록</button>
+            <span id="manual-holiday-list-span" style="color: #555; font-size: 10px;">(없음)</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 5px;">
+            <label>⚙️ 정산 연도:</label>
+            <select id="config-year-select" class="filter-select" onchange="onYearChange()" style="width: 85px;">
+                <option value="2026" selected>2026년</option>
+                <option value="2027">2027년</option>
+            </select>
+            <button onclick="openYearConfigModal()" style="background:#0d6efd; color:#fff; border:none; padding:3px 7px; border-radius:4px; cursor:pointer; font-weight:bold; white-space:nowrap;">🛠️ 단가 수정</button>
+            <span id="current-config-summary" style="color: #475569; font-size: 9.5px; white-space:nowrap;">(상시:12,121 / 시간:13,000 / 수가:16,800)</span>
+        </div>
+    </div>
+
+    <!-- Filter Control Bar -->
+    <div class="filter-section" id="filter-section" style="display:none;">
+        <div class="filter-group">
+            <span class="search-count-badge" id="search-count-badge">조회 건수: 0 건</span>
+        </div>
+
+        <div class="filter-group">
+            <label>귀속월:</label>
+            <select id="filter-month" class="filter-select" onchange="applyFilters()">
+                <option value="">전체 월</option>
+                <option value="2027-12">2027년 12월</option>
+                <option value="2027-11">2027년 11월</option>
+                <option value="2027-10">2027년 10월</option>
+                <option value="2027-09">2027년 9월</option>
+                <option value="2027-08">2027년 8월</option>
+                <option value="2027-07">2027년 7월</option>
+                <option value="2027-06">2027년 6월</option>
+                <option value="2027-05">2027년 5월</option>
+                <option value="2027-04">2027년 4월</option>
+                <option value="2027-03">2027년 3월</option>
+                <option value="2027-02">2027년 2월</option>
+                <option value="2027-01">2027년 1월</option>
+                <option value="2026-12">2026년 12월</option>
+                <option value="2026-11">2026년 11월</option>
+                <option value="2026-10">2026년 10월</option>
+                <option value="2026-09" selected>2026년 9월</option>
+                <option value="2026-08">2026년 8월</option>
+                <option value="2026-07">2026년 7월</option>
+                <option value="2026-06">2026년 6월</option>
+                <option value="2026-05">2026년 5월</option>
+                <option value="2026-04">2026년 4월</option>
+                <option value="2026-03">2026년 3월</option>
+                <option value="2026-02">2026년 2월</option>
+                <option value="2026-01">2026년 1월</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>기간검색:</label>
+            <select id="filter-date-range" class="filter-select" onchange="applyFilters()" style="min-width: 110px;">
+                <option value="">전체 기간</option>
+                <option value="2026-09">2026년 9월 (당월)</option>
+                <option value="2026-08">2026년 8월 (전월)</option>
+                <option value="recent30">최근 30일 이내</option>
+                <option value="year2026">2026년 전체</option>
+                <option value="year2027">2027년 전체</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>서비스키:</label>
+            <select id="filter-service-key" class="filter-select" onchange="applyFilters()">
+                <option value="">전체 서비스키</option>
+                <option value="건강동행">건강동행</option>
+                <option value="이사동행">이사동행</option>
+                <option value="마음동행">마음동행</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>구분:</label>
+            <select id="filter-manager-type" class="filter-select" onchange="applyFilters()">
+                <option value="">전체 구분</option>
+                <option value="상시">상시</option>
+                <option value="매력">매력</option>
+                <option value="노인">노인</option>
+                <option value="시간제">시간제</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>매니저명:</label>
+            <input type="text" id="filter-manager-name" class="filter-input" placeholder="이름 검색..." onkeyup="applyFilters()">
+        </div>
+
+        <div class="filter-group">
+            <label>이용자명:</label>
+            <input type="text" id="filter-user" class="filter-input" placeholder="이름 검색..." onkeyup="applyFilters()">
+        </div>
+
+        <div class="filter-group">
+            <label>유무료:</label>
+            <select id="filter-free-type" class="filter-select" onchange="applyFilters()">
+                <option value="">전체</option>
+                <option value="유료">유료</option>
+                <option value="무료">무료</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>신청시간:</label>
+            <select id="filter-apply-time" class="filter-select" onchange="applyFilters()">
+                <option value="">전체 신청시간</option>
+                <option value="01:00">1시간 (01:00)</option>
+                <option value="01:30">1시간 30분 (01:30)</option>
+                <option value="02:00">2시간 (02:00)</option>
+                <option value="02:30">2시간 30분 (02:30)</option>
+                <option value="03:00">3시간 (03:00)</option>
+                <option value="03:30">3시간 30분 (03:30)</option>
+                <option value="04:00">4시간 (04:00)</option>
+                <option value="04:30">4시간 30분 (04:30)</option>
+                <option value="05:00">5시간 (05:00)</option>
+                <option value="05:30">5시간 30분 (05:30)</option>
+                <option value="06:00">6시간 (06:00)</option>
+                <option value="06:30">6시간 30분 (06:30)</option>
+                <option value="07:00">7시간 (07:00)</option>
+                <option value="07:30">7시간 30분 (07:30)</option>
+                <option value="08:00">8시간 (08:00)</option>
+                <option value="08:30">8시간 30분 (08:30)</option>
+                <option value="09:00">9시간 (09:00)</option>
+                <option value="09:30">9시간 30분 (09:30)</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>소요시간:</label>
+            <select id="filter-duration-range" class="filter-select" onchange="applyFilters()">
+                <option value="">전체 소요시간</option>
+                <option value="1.0">1시간 이하 (~01:00)</option>
+                <option value="1.5">1시간 30분 (01:30~01:59)</option>
+                <option value="2.0">2시간 (02:00~02:29)</option>
+                <option value="2.5">2시간 30분 (02:30~02:59)</option>
+                <option value="3.0">3시간 (03:00~03:29)</option>
+                <option value="3.5">3시간 30분 (03:30~03:59)</option>
+                <option value="4.0">4시간 (04:00~04:29)</option>
+                <option value="4.5">4시간 30분 (04:30~04:59)</option>
+                <option value="5.0">5시간 (05:00~05:29)</option>
+                <option value="5.5">5시간 30분 (05:30~05:59)</option>
+                <option value="6.0">6시간 (06:00~06:29)</option>
+                <option value="6.5">6시간 30분 (06:30~06:59)</option>
+                <option value="7.0">7시간 (07:00~07:29)</option>
+                <option value="7.5">7시간 30분 (07:30~07:59)</option>
+                <option value="8.0">8시간 (08:00~08:29)</option>
+                <option value="8.5">8시간 30분 (08:30~08:59)</option>
+                <option value="9.0">9시간 (09:00~09:29)</option>
+                <option value="9.5">9시간 30분 이상 (09:30~)</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>결제수단:</label>
+            <select id="filter-pay-method" class="filter-select" onchange="applyFilters()">
+                <option value="">전체 결제</option>
+                <option value="카드">카드결제 건</option>
+                <option value="계좌">계좌이체 건</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>취소구분:</label>
+            <select id="filter-status" class="filter-select" onchange="applyFilters()">
+                <option value="">전체 취소구분</option>
+                <option value="정상">정상 동행</option>
+                <option value="고객취소">고객취소</option>
+                <option value="당일취소">당일취소</option>
+                <option value="현장취소">현장취소</option>
+                <option value="현장무료취소">현장무료취소</option>
+                <option value="미배정">미배정 건</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Dynamic Summary Dashboard -->
+    <div class="summary-dashboard" id="summary-dashboard" style="display:none;">
+        <div class="card" onclick="filterByDashboard('전체')"><div class="title">전체 대상</div><div class="val" id="sum-count">0 건</div></div>
+        <div class="card accent" onclick="filterByDashboard('정상')"><div class="title">정상동행</div><div class="val" id="sum-normal-cnt">0 건</div></div>
+        <div class="card danger" onclick="filterByDashboard('고객취소')"><div class="title">고객취소</div><div class="val" id="sum-cust-cancel-cnt">0 건</div></div>
+        <div class="card danger" onclick="filterByDashboard('당일취소')"><div class="title">당일취소</div><div class="val" id="sum-today-cancel-cnt">0 건</div></div>
+        <div class="card danger" onclick="filterByDashboard('현장취소')"><div class="title">현장취소</div><div class="val" id="sum-site-cancel-cnt">0 건</div></div>
+        <div class="card warning" onclick="filterByDashboard('현장무료취소')"><div class="title">현장무료취소</div><div class="val" id="sum-site-free-cnt">0 건</div></div>
+        <div class="card warning" onclick="filterByDashboard('미배정')"><div class="title">미배정</div><div class="val" id="sum-unassigned-cnt">0 건</div></div>
+        <div class="card" onclick="filterByDashboard('시민이용료')"><div class="title">시민 이용료</div><div class="val" id="sum-citizen">0 원</div></div>
+        <div class="card warning" onclick="filterByDashboard('시간제총임금')"><div class="title">시간제 총임금</div><div class="val" id="sum-parttime">0 원</div></div>
+        <div class="card warning" onclick="filterByDashboard('상시초과임금')"><div class="title">상시 초과임금</div><div class="val" id="sum-fulltime">0 원</div></div>
+        <div class="card accent" onclick="filterByDashboard('수가총청구액')"><div class="title">수가 총청구액</div><div class="val" id="sum-service">0 원</div></div>
+        <div class="card info-report" onclick="openReportModal()"><div class="title">보고서 보기</div><div class="val" style="color:#00838f;">📊 전체현황 요약</div></div>
+        <div class="card info-payslip" onclick="openPayslipSelectorModal()"><div class="title">급여명세서/기록부</div><div class="val" style="color:#6741d9;">👥 매니저별 출력</div></div>
+        <div class="card info-transport" onclick="openTransportSelectorModal()"><div class="title">교통비지급내역</div><div class="val" style="color:#d6336c;">🚆 상시교통비</div></div>
+    </div>
+
+    <!-- Table Container -->
+    <div class="table-wrapper" id="table-wrapper" style="display:none;">
+        <table id="full-table">
+            <thead>
+                <tr id="header-columns-row"></tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 📌 연도별 단가 상세 수정 및 추가 모달 -->
+<div class="modal-overlay" id="year-config-modal">
+    <div class="modal-content" style="max-width: 600px; height: auto;">
+        <div class="modal-header">
+            <h2>🛠️ 연도별 단가 및 가중치 상세 설정</h2>
+            <button class="close-btn" onclick="closeYearConfigModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 12px;">
+            <div style="margin-bottom: 10px; display: flex; gap: 8px; align-items: center;">
+                <label style="font-weight: bold; width: 120px;">설정 대상 연도:</label>
+                <select id="modal-config-year" class="filter-select" style="flex:1; padding:4px;" onchange="loadYearConfigToModal(this.value)">
+                    <option value="2026">2026년</option>
+                    <option value="2027">2027년</option>
+                </select>
+                <button onclick="addNewYearConfig()" style="background:#198754; color:#fff; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:bold;">➕ 새 연도 추가</button>
+            </div>
+            <table class="report-table" style="text-align: left;">
+                <tr><th style="width:40%;">설정 항목</th><th>적용 금액 / 가중치</th></tr>
+                <tr><td>상시매니저 생활임금 (시급)</td><td><input type="number" id="cfg-sangsi-wage" class="filter-input" style="width:100%;"></td></tr>
+                <tr><td>시간제임금 (시급)</td><td><input type="number" id="cfg-part-wage" class="filter-input" style="width:100%;"></td></tr>
+                <tr><td>서비스수가 (시급)</td><td><input type="number" id="cfg-service-rate" class="filter-input" style="width:100%;"></td></tr>
+                <tr><td>상시매니저 평일 초과가중치</td><td><input type="number" id="cfg-sangsi-weekday-w" class="filter-input" style="width:100%;" step="0.1"> (예: 0.5 = 50%)</td></tr>
+                <tr><td>시간제매니저 평일 초과가중치</td><td><input type="number" id="cfg-part-weekday-w" class="filter-input" style="width:100%;" step="0.1"> (예: 0.3 = 30%)</td></tr>
+                <tr><td>상시매니저 주말/휴일가중치</td><td><input type="number" id="cfg-sangsi-weekend-w" class="filter-input" style="width:100%;" step="0.1"> (예: 0.5 = 50%)</td></tr>
+                <tr><td>시간제매니저 주말/휴일가중치</td><td><input type="number" id="cfg-part-weekend-w" class="filter-input" style="width:100%;" step="0.1"> (예: 0.5 = 50%)</td></tr>
+                <tr><td>시민요금</td><td><input type="number" id="cfg-citizen-fee" class="filter-input" style="width:100%;"></td></tr>
+                <tr><td>시민취소료 (당일/현장)</td><td><input type="number" id="cfg-cancel-fee" class="filter-input" style="width:100%;"></td></tr>
+            </table>
+        </div>
+        <div class="report-footer-btns">
+            <button class="download-zone" style="padding:6px 14px; border:none; background-color:#198754;" onclick="saveYearConfig()">💾 설정 저장 및 재계산</button>
+            <button class="close-btn" style="background:#64748b; color:#fff; padding:6px 14px; border-radius:4px; font-size:10.5px;" onclick="closeYearConfigModal()">닫기</button>
+        </div>
+    </div>
+</div>
+
+<!-- 📌 전체동행현황 보고서 팝업 모달 -->
+<div class="modal-overlay" id="report-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>📊 서울시 임금 정산 관리 시스템 - 전체현황 요약 보고서</h2>
+            <button class="close-btn" onclick="closeReportModal()">&times;</button>
+        </div>
+        
+        <div class="modal-body">
+            <div class="report-section-title"><span>📌 총괄 요약</span></div>
+            <div class="report-grid">
+                <div class="report-item"><div class="r-title">총 정상동행 건수</div><div class="r-val" id="rep-normal-cnt">0 건</div></div>
+                <div class="report-item"><div class="r-title">시민요금</div><div class="r-val" id="rep-citizen">0 원</div></div>
+                <div class="report-item"><div class="r-title">상시 초과임금</div><div class="r-val" id="rep-fulltime">0 원</div></div>
+                <div class="report-item"><div class="r-title">시간제 임금</div><div class="r-val" id="rep-parttime">0 원</div></div>
+                <div class="report-item"><div class="r-title">수가 청구</div><div class="r-val" id="rep-service">0 원</div></div>
+            </div>
+            <div style="text-align: right; font-weight: bold; margin-bottom: 12px; color: #1e293b; font-size: 11.5px;">
+                전체 수익률 (시간제 기준): <span id="rep-margin" style="color: var(--success-color);">0.0%</span>
+            </div>
+
+            <div class="report-section-title"><span>📅 [월별 실적 요약]</span></div>
+            <div class="report-table-wrapper">
+                <table class="report-table">
+                    <thead>
+                        <tr><th>귀속 월</th><th>정상동행 건수</th><th>상시 초과임금</th><th>시간제 임금</th><th>수가 청구</th><th>수익률 (시간제 기준)</th></tr>
+                    </thead>
+                    <tbody id="monthly-report-tbody"></tbody>
+                </table>
+            </div>
+            <div class="vertical-chart-section">
+                <div style="font-weight:bold; margin-bottom:6px; color:#1e293b; font-size:10.5px;">📊 월별 정상동행 건수 세로 막대그래프</div>
+                <div class="vertical-chart-container" id="monthly-vchart-container"></div>
+            </div>
+
+            <div class="report-section-title"><span>📌 [서비스별 실적 요약 및 비교]</span></div>
+            <div class="report-table-wrapper">
+                <table class="report-table">
+                    <thead>
+                        <tr><th>서비스명</th><th>정상동행</th><th>상시 초과임금</th><th>시간제 임금</th><th>수가 청구</th><th>수행 비중 (%)</th></tr>
+                    </thead>
+                    <tbody id="service-report-tbody"></tbody>
+                </table>
+            </div>
+            <div class="vertical-chart-section">
+                <div style="font-weight:bold; margin-bottom:6px; color:#1e293b; font-size:10.5px;">📊 서비스별 수행 비중 세로 막대그래프</div>
+                <div class="vertical-chart-container" id="service-vchart-container"></div>
+            </div>
+        </div>
+
+        <div class="report-footer-btns">
+            <button class="download-zone" style="padding:5px 12px; border:none;" onclick="exportReportToExcel('summary')">📥 총괄요약 엑셀 다운로드</button>
+            <button class="download-zone" style="padding:5px 12px; border:none;" onclick="exportReportToExcel('monthly')">📥 월별요약 엑셀 다운로드</button>
+            <button class="download-zone" style="padding:5px 12px; border:none;" onclick="exportReportToExcel('service')">📥 서비스별요약 엑셀 다운로드</button>
+            <button class="download-zone" style="padding:5px 12px; border:none; background-color:#0d6efd;" onclick="exportReportToExcel('all')">📥 전체 보고서 통합 다운로드</button>
+            <button class="close-btn" style="background:#198754; color:#fff; padding:5px 14px; border-radius:4px; font-size:10.5px;" onclick="closeReportModal()">확인</button>
+        </div>
+    </div>
+</div>
+
+<!-- 📌 1단계: 매니저별 급여명세서/근로기록부 선택 모달 -->
+<div class="modal-overlay" id="payslip-selector-modal">
+    <div class="modal-content" style="max-width: 500px; height: auto;">
+        <div class="modal-header">
+            <h2>👥 매니저별 급여명세서 및 근로기록부 출력</h2>
+            <button class="close-btn" onclick="closePayslipSelectorModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 12px;">
+            <div style="margin-bottom: 10px;">
+                <label style="font-weight: bold; display:block; margin-bottom: 3px;">귀속월 선택:</label>
+                <select id="payslip-modal-month" class="filter-select" style="width:100%; padding:5px;">
+                    <option value="2026-09">2026년 9월</option>
+                    <option value="2026-08">2026년 8월</option>
+                    <option value="2026-07">2026년 7월</option>
+                    <option value="2026-06">2026년 6월</option>
+                    <option value="2026-05">2026년 5월</option>
+                </select>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="font-weight: bold; display:block; margin-bottom: 3px;">매니저 선택 (개별 조회용):</label>
+                <select id="payslip-modal-manager" class="filter-select" style="width:100%; padding:5px;">
+                    <option value="">-- 매니저를 선택하세요 --</option>
+                </select>
+            </div>
+        </div>
+        <div class="report-footer-btns" style="flex-wrap: wrap; gap: 6px;">
+            <button class="download-zone" style="padding:6px 12px; border:none; background-color:#6741d9;" onclick="generatePayslip()">📄 개별 문서 생성 및 미리보기</button>
+            <button id="btn-batch-zip" class="download-zone" style="padding:6px 12px; border:none; background-color:#198754;" onclick="downloadAllPayslipsPDF()">📦 전체 매니저 PDF 일괄 다운로드 (ZIP)</button>
+            <button class="close-btn" style="background:#64748b; color:#fff; padding:6px 12px; border-radius:4px; font-size:10.5px;" onclick="closePayslipSelectorModal()">취소</button>
+        </div>
+    </div>
+</div>
+
+<!-- 📌 2단계: 문서 상세 보기 및 PDF 다운로드 팝업 모달 -->
+<div class="modal-overlay" id="payslip-view-modal">
+    <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-header">
+            <h2 id="modal-view-title">📄 문서 미리보기</h2>
+            <button class="close-btn" onclick="closePayslipViewModal()">&times;</button>
+        </div>
+        <div style="background: #f1f5f9; padding: 8px 12px; border-bottom: 1px solid #cbd5e1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 5px; flex: 1; min-width: 250px;">
+                <label style="font-weight: bold; color: #334155; white-space:nowrap;">다른 매니저 조회:</label>
+                <select id="quick-change-manager" class="filter-select" style="flex: 1; padding: 4px;" onchange="onQuickChangeManager(this.value)">
+                    <option value="">-- 매니저 바로 선택 --</option>
+                </select>
+            </div>
+            <div id="payslip-date-edit-wrap" style="display: flex; align-items: center; gap: 5px;">
+                <label style="font-weight: bold; color: #0d6efd; white-space:nowrap;">지급일 수정:</label>
+                <input type="text" id="payslip-custom-paydate" class="filter-input" style="width: 100px; text-align: center;" oninput="updatePayslipDateOnFly()">
+            </div>
+        </div>
+        <div class="modal-body" id="payslip-print-area" style="background: #e2e8f0; padding: 12px;">
+        </div>
+        <div class="report-footer-btns">
+            <button class="download-zone" style="padding:6px 14px; border:none; background-color:#dc3545;" onclick="downloadPayslipPDF()">📥 PDF로 저장하기</button>
+            <button class="close-btn" style="background:#64748b; color:#fff; padding:6px 14px; border-radius:4px; font-size:10.5px;" onclick="closePayslipViewModal()">닫기</button>
+        </div>
+    </div>
+</div>
+
+<!-- 📌 상시매니저 교통비지급내역서 선택 모달 -->
+<div class="modal-overlay" id="transport-selector-modal">
+    <div class="modal-content" style="max-width: 500px; height: auto;">
+        <div class="modal-header">
+            <h2>🚆 상시매니저 교통비지급내역서 출력</h2>
+            <button class="close-btn" onclick="closeTransportSelectorModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 12px;">
+            <div style="margin-bottom: 10px;">
+                <label style="font-weight: bold; display:block; margin-bottom: 3px;">귀속월 선택:</label>
+                <select id="transport-modal-month" class="filter-select" style="width:100%; padding:5px;">
+                    <option value="2026-09">2026년 9월</option>
+                    <option value="2026-08">2026년 8월</option>
+                    <option value="2026-07">2026년 7월</option>
+                    <option value="2026-06">2026년 6월</option>
+                    <option value="2026-05">2026년 5월</option>
+                </select>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="font-weight: bold; display:block; margin-bottom: 3px;">상시매니저 선택:</label>
+                <select id="transport-modal-manager" class="filter-select" style="width:100%; padding:5px;">
+                    <option value="">-- 상시매니저를 선택하세요 --</option>
+                </select>
+            </div>
+        </div>
+        <div class="report-footer-btns" style="flex-wrap: wrap; gap: 6px;">
+            <button class="download-zone" style="padding:6px 12px; border:none; background-color:#d6336c;" onclick="generateTransportDoc()">📄 교통비지급내역서 미리보기</button>
+            <button id="btn-batch-transport-zip" class="download-zone" style="padding:6px 12px; border:none; background-color:#198754;" onclick="downloadAllTransportPDF()">📦 전체 상시매니저 교통비 일괄 ZIP</button>
+            <button class="close-btn" style="background:#64748b; color:#fff; padding:6px 12px; border-radius:4px; font-size:10.5px;" onclick="closeTransportSelectorModal()">취소</button>
+        </div>
+    </div>
+</div>
+
+<!-- 📌 상시매니저 교통비지급내역서 미리보기 및 PDF 모달 -->
+<div class="modal-overlay" id="transport-view-modal">
+    <div class="modal-content" style="max-width: 850px;">
+        <div class="modal-header">
+            <h2>🚆 상시매니저 교통비지급내역서 미리보기</h2>
+            <button class="close-btn" onclick="closeTransportViewModal()">&times;</button>
+        </div>
+        <div style="background: #f1f5f9; padding: 8px 12px; border-bottom: 1px solid #cbd5e1; display: flex; align-items: center; gap: 8px;">
+            <label style="font-weight: bold; color: #334155;">다른 상시매니저 조회:</label>
+            <select id="quick-change-transport-manager" class="filter-select" style="flex: 1; padding: 4px;" onchange="onQuickChangeTransport(this.value)">
+                <option value="">-- 상시매니저 바로 선택 --</option>
+            </select>
+        </div>
+        <div class="modal-body" id="transport-print-area" style="background: #e2e8f0; padding: 12px;">
+        </div>
+        <div class="report-footer-btns">
+            <button class="download-zone" style="padding:6px 14px; border:none; background-color:#dc3545;" onclick="downloadTransportPDF()">📥 PDF로 저장하기</button>
+            <button class="close-btn" style="background:#64748b; color:#fff; padding:6px 14px; border-radius:4px; font-size:10.5px;" onclick="closeTransportViewModal()">닫기</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let yearConfigs = {
+        "2026": {
+            sangsiWage: 12121,
+            partWage: 13000,
+            serviceRate: 16800,
+            sangsiWeekdayWeight: 0.5,
+            partWeekdayWeight: 0.3,
+            sangsiWeekendWeight: 0.5,
+            partWeekendWeight: 0.5,
+            citizenFee: 6000,
+            cancelFee: 13000
+        },
+        "2027": {
+            sangsiWage: 12500,
+            partWage: 13500,
+            serviceRate: 17500,
+            sangsiWeekdayWeight: 0.5,
+            partWeekdayWeight: 0.3,
+            sangsiWeekendWeight: 0.5,
+            partWeekendWeight: 0.5,
+            citizenFee: 6000,
+            cancelFee: 13500
+        }
+    };
+
+    let rawAdminRows = null;
+    let managerTypeMap = {}; 
+    let rawCalculatedData = [];
+    let filteredData = [];
+    let activeDashboardMetric = null; 
+
+    let cachedMonthlyData = [];
+    let cachedServiceData = [];
+    let cachedSummaryData = {};
+
+    let manualHolidays = {};
+
+    document.getElementById('admin-file-input').addEventListener('change', function(e) {
+        if(e.target.files.length > 0) {
+            document.getElementById('admin-file-status').innerText = e.target.files[0].name + " (완료)";
+            processAdminFile(e.target.files[0]);
+        }
+    });
+
+    document.getElementById('manager-file-input').addEventListener('change', function(e) {
+        if(e.target.files.length > 0) {
+            document.getElementById('manager-file-status').innerText = e.target.files[0].name + " (완료)";
+            processManagerFile(e.target.files[0]);
+        }
+    });
+
+    function getActiveConfig(dateStr) {
+        let yr = "2026";
+        if (dateStr && dateStr.length >= 4) {
+            yr = dateStr.substring(0, 4);
+        } else {
+            yr = document.getElementById('config-year-select').value;
+        }
+        return yearConfigs[yr] || yearConfigs["2026"];
+    }
+
+    function onYearChange() {
+        let yr = document.getElementById('config-year-select').value;
+        let cfg = yearConfigs[yr] || yearConfigs["2026"];
+        document.getElementById('current-config-summary').innerText = `(상시:${cfg.sangsiWage.toLocaleString()} / 시간:${cfg.partWage.toLocaleString()} / 수가:${cfg.serviceRate.toLocaleString()})`;
+        if(rawAdminRows) {
+            recalculateData();
+        }
+    }
+
+    function openYearConfigModal() {
+        let yr = document.getElementById('config-year-select').value;
+        document.getElementById('modal-config-year').value = yr;
+        loadYearConfigToModal(yr);
+        document.getElementById('year-config-modal').style.display = 'flex';
+    }
+
+    function closeYearConfigModal() {
+        document.getElementById('year-config-modal').style.display = 'none';
+    }
+
+    function loadYearConfigToModal(yr) {
+        let cfg = yearConfigs[yr] || {
+            sangsiWage: 12121, partWage: 13000, serviceRate: 16800,
+            sangsiWeekdayWeight: 0.5, partWeekdayWeight: 0.3,
+            sangsiWeekendWeight: 0.5, partWeekendWeight: 0.5,
+            citizenFee: 6000, cancelFee: 13000
+        };
+
+        document.getElementById('cfg-sangsi-wage').value = cfg.sangsiWage;
+        document.getElementById('cfg-part-wage').value = cfg.partWage;
+        document.getElementById('cfg-service-rate').value = cfg.serviceRate;
+        document.getElementById('cfg-sangsi-weekday-w').value = cfg.sangsiWeekdayWeight;
+        document.getElementById('cfg-part-weekday-w').value = cfg.partWeekdayWeight;
+        document.getElementById('cfg-sangsi-weekend-w').value = cfg.sangsiWeekendWeight;
+        document.getElementById('cfg-part-weekend-w').value = cfg.partWeekendWeight;
+        document.getElementById('cfg-citizen-fee').value = cfg.citizenFee;
+        document.getElementById('cfg-cancel-fee').value = cfg.cancelFee;
+    }
+
+    function addNewYearConfig() {
+        let newYr = prompt("추가할 연도를 입력하세요 (예: 2028):", "2028");
+        if(!newYr) return;
+        newYr = newYr.trim();
+        if(!yearConfigs[newYr]) {
+            let prevCfg = yearConfigs[String(parseInt(newYr)-1)] || yearConfigs["2026"];
+            yearConfigs[newYr] = { ...prevCfg };
+            
+            let selectEl = document.getElementById('modal-config-year');
+            let opt = document.createElement('option');
+            opt.value = newYr;
+            opt.innerText = newYr + "년";
+            selectEl.appendChild(opt);
+            selectEl.value = newYr;
+
+            let mainSelect = document.getElementById('config-year-select');
+            let mainOpt = document.createElement('option');
+            mainOpt.value = newYr;
+            mainOpt.innerText = newYr + "년";
+            mainSelect.appendChild(mainOpt);
+
+            loadYearConfigToModal(newYr);
+            alert(`${newYr}년 단가 설정이 추가되었습니다. 값을 수정 후 저장해주세요.`);
+        } else {
+            document.getElementById('modal-config-year').value = newYr;
+            loadYearConfigToModal(newYr);
+        }
+    }
+
+    function saveYearConfig() {
+        let yr = document.getElementById('modal-config-year').value;
+        yearConfigs[yr] = {
+            sangsiWage: parseFloat(document.getElementById('cfg-sangsi-wage').value) || 12121,
+            partWage: parseFloat(document.getElementById('cfg-part-wage').value) || 13000,
+            serviceRate: parseFloat(document.getElementById('cfg-service-rate').value) || 16800,
+            sangsiWeekdayWeight: parseFloat(document.getElementById('cfg-sangsi-weekday-w').value) || 0.5,
+            partWeekdayWeight: parseFloat(document.getElementById('cfg-part-weekday-w').value) || 0.3,
+            sangsiWeekendWeight: parseFloat(document.getElementById('cfg-sangsi-weekend-w').value) || 0.5,
+            partWeekendWeight: parseFloat(document.getElementById('cfg-part-weekend-w').value) || 0.5,
+            citizenFee: parseFloat(document.getElementById('cfg-citizen-fee').value) || 6000,
+            cancelFee: parseFloat(document.getElementById('cfg-cancel-fee').value) || 13000
+        };
+
+        document.getElementById('config-year-select').value = yr;
+        onYearChange();
+        closeYearConfigModal();
+        alert(`[${yr}년] 단가 설정이 성공적으로 저장되었으며 정산에 즉시 반영됩니다.`);
+    }
+
+    function addManualHoliday() {
+        const dateVal = document.getElementById('manual-holiday-date').value;
+        const nameVal = document.getElementById('manual-holiday-name').value.trim() || '임시공휴일';
+
+        if(!dateVal) {
+            alert("등록할 날짜를 선택해주세요.");
+            return;
+        }
+
+        manualHolidays[dateVal] = nameVal;
+        
+        let listStr = Object.entries(manualHolidays).map(([d, n]) => `${d}(${n})`).join(', ');
+        document.getElementById('manual-holiday-list-span').innerText = `(등록됨: ${listStr})`;
+        
+        alert(`[${dateVal}] ${nameVal}이(가) 수동 공휴일로 등록되었습니다. 데이터를 재계산합니다.`);
+        
+        document.getElementById('manual-holiday-date').value = '';
+        document.getElementById('manual-holiday-name').value = '';
+
+        if(rawAdminRows) {
+            recalculateData();
+        }
+    }
+
+    function openReportModal() {
+        if (!rawCalculatedData || rawCalculatedData.length === 0) {
+            alert("먼저 어드민 정산 엑셀 파일을 업로드해주세요.");
+            return;
+        }
+
+        let normalCnt = 0;
+        let totalCitizen = 0;
+        let totalFulltime = 0;
+        let totalParttime = 0;
+        let totalService = 0;
+
+        let monthlyStats = {};
+        let serviceStats = {};
+
+        for(let y=2026; y<=2027; y++) {
+            for(let i=1; i<=12; i++) {
+                monthlyStats[`${y}년 ${i}월`] = { cnt: 0, full: 0, part: 0, svc: 0 };
+            }
+        }
+
+        rawCalculatedData.forEach(r => {
+            const isCancel = r['취소형태'] !== '' || r['미배정'] === '미배정';
+            if (!isCancel) {
+                normalCnt++;
+                let cit = r['시민요금'] || 0;
+                let full = typeof r['상시초과임금'] === 'number' ? r['상시초과임금'] : 0;
+                let part = r['시간제 총임금'] || 0;
+                let svc = r['서비스수가 총청구'] || 0;
+
+                totalCitizen += cit;
+                totalFulltime += full;
+                totalParttime += part;
+                totalService += svc;
+
+                let meetRaw = r['_rawMeetTime'];
+                if(meetRaw && meetRaw.length >= 7) {
+                    let yStr = meetRaw.substring(0, 4);
+                    let mStr = meetRaw.substring(5, 7);
+                    let mNum = parseInt(mStr, 10);
+                    let mKey = `${yStr}년 ${mNum}월`;
+                    if(!monthlyStats[mKey]) monthlyStats[mKey] = { cnt: 0, full: 0, part: 0, svc: 0 };
+                    monthlyStats[mKey].cnt++;
+                    monthlyStats[mKey].full += full;
+                    monthlyStats[mKey].part += part;
+                    monthlyStats[mKey].svc += svc;
+                }
+
+                let sKey = r['서비스키'] || '기타';
+                if(!serviceStats[sKey]) {
+                    serviceStats[sKey] = { cnt: 0, full: 0, part: 0, svc: 0 };
+                }
+                serviceStats[sKey].cnt++;
+                serviceStats[sKey].full += full;
+                serviceStats[sKey].part += part;
+                serviceStats[sKey].svc += svc;
+            }
+        });
+
+        let totalNet = totalService - totalParttime;
+        let totalMargin = totalService > 0 ? ((totalNet / totalService) * 100).toFixed(1) : 0;
+
+        cachedSummaryData = { normalCnt, totalCitizen, totalFulltime, totalParttime, totalService, totalMargin };
+
+        document.getElementById('rep-normal-cnt').innerText = normalCnt.toLocaleString() + ' 건';
+        document.getElementById('rep-citizen').innerText = totalCitizen.toLocaleString() + ' 원';
+        document.getElementById('rep-fulltime').innerText = totalFulltime.toLocaleString() + ' 원';
+        document.getElementById('rep-parttime').innerText = totalParttime.toLocaleString() + ' 원';
+        document.getElementById('rep-service').innerText = totalService.toLocaleString() + ' 원';
+        document.getElementById('rep-margin').innerText = totalMargin + '%';
+
+        let maxMonthlyCnt = 1;
+        Object.keys(monthlyStats).forEach(k => {
+            if(monthlyStats[k].cnt > maxMonthlyCnt) maxMonthlyCnt = monthlyStats[k].cnt;
+        });
+
+        cachedMonthlyData = [];
+        let monthlyTbody = document.getElementById('monthly-report-tbody');
+        let monthlyVChart = document.getElementById('monthly-vchart-container');
+        monthlyTbody.innerHTML = '';
+        monthlyVChart.innerHTML = '';
+
+        Object.keys(monthlyStats).forEach(k => {
+            let d = monthlyStats[k];
+            if(d.cnt === 0) return;
+            let netM = d.svc - d.part;
+            let m = d.svc > 0 ? ((netM / d.svc) * 100).toFixed(1) + '%' : '0.0%';
+            let heightPct = Math.round((d.cnt / maxMonthlyCnt) * 100);
+
+            cachedMonthlyData.push({ month: k, cnt: d.cnt, full: d.full, part: d.part, svc: d.svc, margin: m });
+
+            let tr = document.createElement('tr');
+            tr.innerHTML = `<td>${k}</td><td>${d.cnt}건</td><td>${d.full.toLocaleString()}</td><td>${d.part.toLocaleString()}</td><td>${d.svc.toLocaleString()}</td><td>${m}</td>`;
+            monthlyTbody.appendChild(tr);
+
+            let vItem = document.createElement('div');
+            vItem.className = 'v-bar-item';
+            vItem.innerHTML = `<div class="v-bar-value">${d.cnt}건</div><div class="v-bar-pillar" style="height: ${Math.max(heightPct, 4)}%;"></div><div class="v-bar-label">${k}</div>`;
+            monthlyVChart.appendChild(vItem);
+        });
+
+        cachedServiceData = [];
+        let serviceTbody = document.getElementById('service-report-tbody');
+        let serviceVChart = document.getElementById('service-vchart-container');
+        serviceTbody.innerHTML = '';
+        serviceVChart.innerHTML = '';
+
+        let totalSvcCntForRatio = normalCnt > 0 ? normalCnt : 1;
+
+        for(let s in serviceStats) {
+            let d = serviceStats[s];
+            let ratioNum = parseFloat(((d.cnt / totalSvcCntForRatio) * 100).toFixed(2));
+            let ratioStr = ratioNum + '%';
+
+            cachedServiceData.push({ service: s, cnt: d.cnt, full: d.full, part: d.part, svc: d.svc, ratio: ratioStr });
+
+            let tr = document.createElement('tr');
+            tr.innerHTML = `<td>${s}</td><td>${d.cnt}건</td><td>${d.full.toLocaleString()}</td><td>${d.part.toLocaleString()}</td><td>${d.svc.toLocaleString()}</td><td>${ratioStr}</td>`;
+            serviceTbody.appendChild(tr);
+
+            let vItem = document.createElement('div');
+            vItem.className = 'v-bar-item';
+            vItem.innerHTML = `<div class="v-bar-value">${ratioStr}</div><div class="v-bar-pillar green" style="height: ${Math.max(ratioNum, 4)}%;"></div><div class="v-bar-label">${s}</div>`;
+            serviceVChart.appendChild(vItem);
+        }
+
+        document.getElementById('report-modal').style.display = 'flex';
+    }
+
+    function closeReportModal() {
+        document.getElementById('report-modal').style.display = 'none';
+    }
+
+    function updateLatestMonthDropdown() {
+        let maxMonth = "";
+        rawCalculatedData.forEach(r => {
+            if(r['_rawMeetTime'] && r['_rawMeetTime'].length >= 7) {
+                let mStr = r['_rawMeetTime'].substring(0, 7);
+                if(mStr > maxMonth) {
+                    maxMonth = mStr;
+                }
+            }
+        });
+
+        if(!maxMonth) {
+            maxMonth = "2026-09"; 
+        }
+
+        let monthSelects = [document.getElementById('payslip-modal-month'), document.getElementById('transport-modal-month')];
+        monthSelects.forEach(monthSelect => {
+            if(!monthSelect) return;
+            let options = monthSelect.options;
+            let found = false;
+            for(let i=0; i<options.length; i++) {
+                if(options[i].value === maxMonth) {
+                    monthSelect.selectedIndex = i;
+                    found = true;
+                    break;
+                }
+            }
+            if(!found && options.length > 0) {
+                monthSelect.selectedIndex = 0;
+            }
+        });
+    }
+
+    function populateManagerDropdowns() {
+        let managerSet = new Set();
+        let sangsiManagerSet = new Set();
+        let selectedMonth = document.getElementById('payslip-modal-month').value;
+
+        rawCalculatedData.forEach(r => {
+            if(r['매니저명'] && r['매니저명'] !== '-') {
+                let matchMon = !selectedMonth || (r['_rawMeetTime'] && r['_rawMeetTime'].startsWith(selectedMonth));
+                if(matchMon) {
+                    managerSet.add(r['매니저명']);
+                    if(r['매니저구분'] === '상시') {
+                        sangsiManagerSet.add(r['매니저명']);
+                    }
+                }
+            }
+        });
+
+        let sortedManagers = Array.from(managerSet).sort();
+        let sortedSangsi = Array.from(sangsiManagerSet).sort();
+
+        let managerSelect = document.getElementById('payslip-modal-manager');
+        managerSelect.innerHTML = '<option value="">-- 매니저를 선택하세요 --</option>';
+        sortedManagers.forEach(m => {
+            let opt = document.createElement('option');
+            opt.value = m;
+            opt.innerText = m;
+            managerSelect.appendChild(opt);
+        });
+
+        let quickSelect = document.getElementById('quick-change-manager');
+        quickSelect.innerHTML = '<option value="">-- 매니저 바로 선택 --</option>';
+        sortedManagers.forEach(m => {
+            let opt = document.createElement('option');
+            opt.value = m;
+            opt.innerText = m;
+            quickSelect.appendChild(opt);
+        });
+
+        let transManagerSelect = document.getElementById('transport-modal-manager');
+        if(transManagerSelect) {
+            transManagerSelect.innerHTML = '<option value="">-- 상시매니저를 선택하세요 --</option>';
+            sortedSangsi.forEach(m => {
+                let opt = document.createElement('option');
+                opt.value = m;
+                opt.innerText = m;
+                transManagerSelect.appendChild(opt);
+            });
+        }
+
+        let quickTransSelect = document.getElementById('quick-change-transport-manager');
+        if(quickTransSelect) {
+            quickTransSelect.innerHTML = '<option value="">-- 상시매니저 바로 선택 --</option>';
+            sortedSangsi.forEach(m => {
+                let opt = document.createElement('option');
+                opt.value = m;
+                opt.innerText = m;
+                quickTransSelect.appendChild(opt);
+            });
+        }
+    }
+
+    function openPayslipSelectorModal() {
+        if (!rawCalculatedData || rawCalculatedData.length === 0) {
+            alert("먼저 어드민 정산 엑셀 파일을 업로드해주세요.");
+            return;
+        }
+        updateLatestMonthDropdown();
+        populateManagerDropdowns();
+        
+        document.getElementById('payslip-modal-month').onchange = function() {
+            populateManagerDropdowns();
+        };
+
+        document.getElementById('payslip-selector-modal').style.display = 'flex';
+    }
+
+    function closePayslipSelectorModal() {
+        document.getElementById('payslip-selector-modal').style.display = 'none';
+    }
+
+    function closePayslipViewModal() {
+        document.getElementById('payslip-view-modal').style.display = 'none';
+    }
+
+    function openTransportSelectorModal() {
+        if (!rawCalculatedData || rawCalculatedData.length === 0) {
+            alert("먼저 어드민 정산 엑셀 파일을 업로드해주세요.");
+            return;
+        }
+        updateLatestMonthDropdown();
+        populateManagerDropdowns();
+
+        let tMonthSel = document.getElementById('transport-modal-month');
+        if(tMonthSel) {
+            tMonthSel.onchange = function() {
+                populateManagerDropdowns();
+            };
+        }
+
+        document.getElementById('transport-selector-modal').style.display = 'flex';
+    }
+
+    function closeTransportSelectorModal() {
+        document.getElementById('transport-selector-modal').style.display = 'none';
+    }
+
+    function closeTransportViewModal() {
+        document.getElementById('transport-view-modal').style.display = 'none';
+    }
+
+    function buildTransportDocHtml(managerName, month, managerRows) {
+        let [yr, mo] = month.split('-');
+        let intMo = parseInt(mo, 10);
+        let rowsHtml = '';
+
+        let todayObj = new Date();
+        let currentYearStr = todayObj.getFullYear();
+        let currentMonthStr = todayObj.getMonth() + 1;
+        let currentDateStr = todayObj.getDate();
+
+        managerRows.forEach(r => {
+            if (r['취소형태'] !== '' || r['미배정'] === '미배정') return;
+            let dateStr = r['_rawMeetTime'] ? r['_rawMeetTime'].substring(5, 10).replace('-', '/') : '-';
+            let dayOfWeek = '';
+            if(r['_rawMeetTime']) {
+                let dObj = new Date(r['_rawMeetTime']);
+                let days = ['(일)', '(월)', '(화)', '(수)', '(목)', '(금)', '(토)'];
+                dayOfWeek = days[dObj.getDay()] || '';
+            }
+            let meetT = r['만남시간'] ? r['만남시간'].substring(r['만남시간'].indexOf(' ')+1) : '-';
+            let retT = r['복귀시간'] || '-';
+            let durT = r['소요시간'] || '-';
+            let hospital = r['병원명'] || r['_rawHospital'] || '서울시내 병원';
+            
+            let department = r['_rawDepartment'] || r['진료과'] || '';
+            let purpose = department ? department : (r['_rawPurpose'] || (r['이용자명'] ? `${r['이용자명']} 병원동행` : '병원동행'));
+
+            rowsHtml += `
+                <tr>
+                    <td>${dateStr}${dayOfWeek}</td>
+                    <td>상시</td>
+                    <td>${managerName}</td>
+                    <td>${r['이용자명'] || '-'}</td>
+                    <td>${meetT}</td>
+                    <td>${retT}</td>
+                    <td>${durT}</td>
+                    <td style="text-align:left; padding-left:4px;">${hospital}</td>
+                    <td style="text-align:left; padding-left:4px;">${purpose}</td>
+                </tr>
+            `;
+        });
+
+        return `
+            <div class="transport-sheet" id="transport-pdf-content" data-mname="${managerName}" data-month="${month}">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+                    <div>
+                        <div style="font-size:9.5px; margin-bottom:1px;">매니저 성명 : ${managerName} (인 또는 서명)</div>
+                        <div style="font-size:9.5px; margin-bottom:1px;">담 &nbsp; &nbsp; &nbsp; 당 : &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (인 또는 서명)</div>
+                        <div style="font-size:9.5px;">수 &nbsp; &nbsp; &nbsp; 석 : &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (인 또는 서명)</div>
+                    </div>
+                    <div style="text-align:right; font-size:9.5px;">
+                        하기 사실을 확인함.<br>
+                        ${currentYearStr}년 ${currentMonthStr}월 ${currentDateStr}일
+                    </div>
+                </div>
+
+                <div class="transport-title">${intMo}월 교통비 지급내역서 (서브온)</div>
+
+                <table class="transport-header-table">
+                    <tr>
+                        <th style="width:12%;">성명</th>
+                        <td style="width:23%; text-align:left; padding-left:6px; font-weight:bold;">${managerName}</td>
+                        <th style="width:15%;">출장목적</th>
+                        <td style="text-align:left; padding-left:6px;">병원동행</td>
+                    </tr>
+                    <tr>
+                        <th>지급비용</th>
+                        <td colspan="3" style="text-align:left; padding-left:6px; font-weight:bold;">62,000원 (서울시 기후동행카드 월정액 실비 지급)</td>
+                    </tr>
+                </table>
+
+                <table class="transport-sub-table">
+                    <thead>
+                        <tr>
+                            <th>동행일자</th>
+                            <th>계약유형</th>
+                            <th>매니저명</th>
+                            <th>이용자명</th>
+                            <th>만남시간</th>
+                            <th>복귀시간</th>
+                            <th>소요시간</th>
+                            <th>방문 병원명</th>
+                            <th>이용 목적</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsHtml}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    function generateTransportDoc() {
+        let month = document.getElementById('transport-modal-month').value;
+        let managerName = document.getElementById('transport-modal-manager').value;
+
+        if(!managerName) {
+            alert("상시매니저를 선택해주세요.");
+            return;
+        }
+
+        let managerRows = rawCalculatedData.filter(r => {
+            if(r['매니저명'] !== managerName || r['매니저구분'] !== '상시') return false;
+            if(month && r['_rawMeetTime']) {
+                if(!r['_rawMeetTime'].startsWith(month)) return false;
+            }
+            return true;
+        });
+
+        if(managerRows.length === 0) {
+            alert(`선택한 기간(${month})에 ${managerName} 상시매니저의 동행 내역이 없습니다.`);
+            return;
+        }
+
+        document.getElementById('transport-print-area').innerHTML = buildTransportDocHtml(managerName, month, managerRows);
+        document.getElementById('quick-change-transport-manager').value = managerName;
+
+        closeTransportSelectorModal();
+        document.getElementById('transport-view-modal').style.display = 'flex';
+    }
+
+    function onQuickChangeTransport(managerName) {
+        if(!managerName) return;
+        let month = document.getElementById('transport-modal-month').value;
+
+        let managerRows = rawCalculatedData.filter(r => {
+            if(r['매니저명'] !== managerName || r['매니저구분'] !== '상시') return false;
+            if(month && r['_rawMeetTime']) {
+                if(!r['_rawMeetTime'].startsWith(month)) return false;
+            }
+            return true;
+        });
+
+        if(managerRows.length === 0) {
+            alert(`선택한 기간(${month})에 ${managerName} 상시매니저의 동행 내역이 없습니다.`);
+            return;
+        }
+
+        document.getElementById('transport-print-area').innerHTML = buildTransportDocHtml(managerName, month, managerRows);
+    }
+
+    function downloadTransportPDF() {
+        const element = document.getElementById('transport-pdf-content');
+        let managerName = element.getAttribute('data-mname') || '매니저';
+        let month = element.getAttribute('data-month') || '2026-09';
+        let [yr, mo] = month.split('-');
+
+        const opt = {
+            margin:       10,
+            filename:     `${yr}년_${mo}월_교통비지급내역서_${managerName}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        html2pdf().from(element).set(opt).save();
+    }
+
+    async function downloadAllTransportPDF() {
+        let month = document.getElementById('transport-modal-month').value;
+        
+        let sangsiSet = new Set();
+        rawCalculatedData.forEach(r => {
+            if(r['매니저명'] && r['매니저명'] !== '-' && r['매니저구분'] === '상시') {
+                if(month && r['_rawMeetTime']) {
+                    if(r['_rawMeetTime'].startsWith(month)) {
+                        sangsiSet.add(r['매니저명']);
+                    }
+                } else {
+                    sangsiSet.add(r['매니저명']);
+                }
+            }
+        });
+
+        let managers = Array.from(sangsiSet);
+        if(managers.length === 0) {
+            alert("선택한 기간에 동행 내역이 있는 상시매니저가 없습니다.");
+            return;
+        }
+
+        if(!confirm(`선택한 월(${month})의 전체 상시매니저(${managers.length}명) 교통비지급내역서를 일괄 생성하여 ZIP 파일로 다운로드하시겠습니까?`)) {
+            return;
+        }
+
+        const btnZip = document.getElementById('btn-batch-transport-zip');
+        const originalText = btnZip.innerHTML;
+        btnZip.innerHTML = `<p>⏳ 교통비 압축 생성 중...</p><span>대기 중 (0/${managers.length})</span>`;
+        btnZip.style.pointerEvents = 'none';
+
+        const zip = new JSZip();
+        
+        let renderBox = document.createElement('div');
+        renderBox.style.position = 'fixed';
+        renderBox.style.left = '0';
+        renderBox.style.top = '0';
+        renderBox.style.zIndex = '99999';
+        renderBox.style.background = '#fff';
+        renderBox.style.padding = '10px';
+        renderBox.style.opacity = '0.01';
+        renderBox.style.pointerEvents = 'none';
+        document.body.appendChild(renderBox);
+
+        let [yr, mo] = month.split('-');
+        let successCount = 0;
+
+        for (let i = 0; i < managers.length; i++) {
+            let managerName = managers[i];
+            
+            btnZip.innerHTML = `<p>⏳ 교통비 압축 생성 중...</p><span>[${i+1}/${managers.length}] ${managerName}...</span>`;
+            await new Promise(r => setTimeout(r, 30));
+
+            let managerRows = rawCalculatedData.filter(r => {
+                if(r['매니저명'] !== managerName || r['매니저구분'] !== '상시') return false;
+                if(month && r['_rawMeetTime']) {
+                    if(!r['_rawMeetTime'].startsWith(month)) return false;
+                }
+                return true;
+            });
+
+            if(managerRows.length === 0) continue;
+
+            let docHtml = buildTransportDocHtml(managerName, month, managerRows);
+            renderBox.innerHTML = docHtml;
+            const element = renderBox.firstElementChild;
+
+            await new Promise(resolve => setTimeout(resolve, 60));
+
+            const opt = {
+                margin:       10,
+                filename:     `transport_${managerName}.pdf`,
+                image:        { type: 'jpeg', quality: 0.95 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            try {
+                let pdfBlob = await html2pdf().from(element).set(opt).output('blob');
+                if (pdfBlob && pdfBlob.size > 0) {
+                    zip.file(`${yr}년_${mo}월_교통비지급내역서_${managerName}.pdf`, pdfBlob);
+                    successCount++;
+                }
+            } catch (err) {
+                console.error(`Error generating transport PDF for ${managerName}:`, err);
+            }
+        }
+
+        renderBox.remove();
+        btnZip.innerHTML = originalText;
+        btnZip.style.pointerEvents = 'auto';
+
+        if(successCount === 0) {
+            alert("생성된 교통비 PDF가 없습니다.");
+            return;
+        }
+
+        let content = await zip.generateAsync({type:"blob"});
+        let url = URL.createObjectURL(content);
+        let a = document.createElement('a');
+        a.href = url;
+        a.download = `서브온_${yr}년_${mo}월_상시매니저_교통비지급내역서.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        closeTransportSelectorModal();
+        alert(`총 ${successCount}명의 상시매니저 교통비지급내역서가 성공적으로 ZIP 파일로 다운로드되었습니다.`);
+    }
+
+    // 📌 귀속월(YYYY-MM)을 받아 다음 달 10일(YYYY-MM-10)을 계산하는 함수
+    function getNextMonth10th(monthStr) {
+        if (!monthStr || !monthStr.includes('-')) {
+            let now = new Date();
+            let y = now.getFullYear();
+            let m = now.getMonth() + 2; // 다음달
+            if (m > 12) { m = 1; y++; }
+            return `${y}-${String(m).padStart(2, '0')}-10`;
+        }
+        let parts = monthStr.split('-');
+        let yr = parseInt(parts[0], 10);
+        let mo = parseInt(parts[1], 10);
+        mo += 1;
+        if (mo > 12) {
+            mo = 1;
+            yr += 1;
+        }
+        return `${yr}-${String(mo).padStart(2, '0')}-10`;
+    }
+
+    function buildDocumentHtml(managerName, month, managerRows, customPayDate) {
+        let managerType = '시간제';
+        let matchedRow = managerRows.find(r => r['매니저구분'] && r['매니저구분'] !== '');
+        if (matchedRow) managerType = matchedRow['매니저구분'];
+
+        let [yr, mo] = month.split('-');
+        let intMo = parseInt(mo, 10);
+
+        let todayObj = new Date();
+        let currentYearStr = todayObj.getFullYear();
+        let currentMonthStr = todayObj.getMonth() + 1;
+        let currentDateStr = todayObj.getDate();
+
+        // 📌 기본 지급일을 귀속월의 다음 달 10일로 설정
+        let defaultPayDate = getNextMonth10th(month);
+        let activePayDate = customPayDate !== undefined ? customPayDate : defaultPayDate;
+
+        if (managerType === '시간제') {
+            let totalWage = 0;
+            let rowsHtml = '';
+
+            managerRows.forEach(r => {
+                const isCancel = r['취소형태'] !== '' || r['미배정'] === '미배정';
+                let wage = isCancel ? (r['시민요금'] || 0) : (r['시간제 총임금'] || r['상시초과임금'] || 0);
+                if(typeof wage !== 'number') wage = parseInt(wage) || 0;
+                if(!isCancel) totalWage += wage;
+
+                let dateStr = r['_rawMeetTime'] ? r['_rawMeetTime'].substring(5, 10).replace('-', '-') : '-';
+                let meetT = r['만남시간'] || '-';
+                let retT = r['복귀시간'] || '-';
+                let durT = r['소요시간'] || '-';
+                let note = r['취소형태'] || r['미배정'] || '';
+
+                rowsHtml += `
+                    <tr>
+                        <td>${dateStr}</td>
+                        <td>${meetT}</td>
+                        <td>${retT}</td>
+                        <td>${durT}</td>
+                        <td class="text-right">${wage.toLocaleString()}</td>
+                        <td>${note}</td>
+                    </tr>
+                `;
+            });
+
+            let tax1 = Math.round(totalWage * 0.03); 
+            let tax2 = Math.round(tax1 * 0.1);       
+            let totalTax = tax1 + tax2;
+            let netReceive = totalWage - totalTax;
+            let birthMock = "790415"; 
+
+            return `
+                <div class="payslip-sheet" id="payslip-pdf-content" data-mtype="${managerType}" data-mname="${managerName}" data-month="${month}">
+                    <div class="payslip-title">${intMo}월 급여명세서</div>
+                    
+                    <table class="payslip-info-table">
+                        <tr>
+                            <th>성명</th><td>${managerName}</td>
+                            <th>생년월일</th><td>${birthMock}</td>
+                        </tr>
+                        <tr>
+                            <th>직급</th><td>동행매니저</td>
+                            <th>지급일</th><td id="payslip-paydate-cell">${activePayDate}</td>
+                        </tr>
+                    </table>
+
+                    <div class="payslip-section-label">세부내역</div>
+                    <table class="payslip-info-table">
+                        <tr>
+                            <th style="background:#f8fafc;">지급항목</th>
+                            <th style="background:#f8fafc;">지급금액(원)</th>
+                            <th style="background:#f8fafc;">공제항목</th>
+                            <th style="background:#f8fafc;">공제금액(원)</th>
+                        </tr>
+                        <tr>
+                            <td>기본급</td>
+                            <td class="text-right">${totalWage.toLocaleString()}</td>
+                            <td>소득세</td>
+                            <td class="text-right">${tax1.toLocaleString()}</td>
+                        </tr>
+                        <tr>
+                            <td><b>지급액 계</b></td>
+                            <td class="text-right"><b>${totalWage.toLocaleString()}</b></td>
+                            <td>지방소득세</td>
+                            <td class="text-right">${tax2.toLocaleString()}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" style="background:#f8fafc;"><b>총수령액(원)</b></td>
+                            <td colspan="2" class="text-right" style="background:#e0f7fa; font-size:11.5px; font-weight:bold; color:#0d6efd;">${netReceive.toLocaleString()} 원</td>
+                        </tr>
+                    </table>
+
+                    <div class="payslip-section-label">동행 세부 내역 (${managerRows.length}건)</div>
+                    <table class="payslip-sub-table">
+                        <thead>
+                            <tr>
+                                <th>동행일</th>
+                                <th>만남시간</th>
+                                <th>복귀시간</th>
+                                <th>소요시간</th>
+                                <th>임금(원)</th>
+                                <th>비고</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        } else {
+            let totalOverWage = 0;
+            let totalOverMins = 0;
+            let rowsHtml = '';
+
+            managerRows.forEach(r => {
+                const isCancel = r['취소형태'] !== '' || r['미배정'] === '미배정';
+                let overWage = 0;
+                let overMinStr = '-';
+                
+                if (!isCancel) {
+                    let ov = r['상시초과임금'];
+                    if (typeof ov === 'number' && ov > 0) {
+                        overWage = ov;
+                        totalOverWage += ov;
+                        let activeCfg = getActiveConfig(r['_rawMeetTime']);
+                        let mins = Math.round(ov / activeCfg.sangsiWage / (1 + activeCfg.sangsiWeekdayWeight) * 60);
+                        totalOverMins += mins;
+                        overMinStr = `${mins}분`;
+                    } else if (ov === '대체휴무') {
+                        overMinStr = '대체휴무';
+                    }
+                } else {
+                    overMinStr = r['취소형태'] || r['미배정'];
+                }
+
+                let dateStr = r['_rawMeetTime'] ? r['_rawMeetTime'].substring(5, 10).replace('-', '-') : '-';
+                let dayOfWeek = '';
+                if(r['_rawMeetTime']) {
+                    let dObj = new Date(r['_rawMeetTime']);
+                    let days = ['(일)', '(월)', '(화)', '(수)', '(목)', '(금)', '(토)'];
+                    dayOfWeek = days[dObj.getDay()] || '';
+                }
+
+                let dateDisplay = `${dateStr}${dayOfWeek}`;
+                let meetT = r['만남시간'] ? r['만남시간'].substring(r['만남시간'].indexOf(' ')+1) : '-';
+                let retT = r['복귀시간'] || '-';
+                let durT = r['소요시간'] || '-';
+                let sKey = r['서비스키'] || '동행';
+
+                rowsHtml += `
+                    <tr>
+                        <td>${dateDisplay}</td>
+                        <td>${managerType}</td>
+                        <td>${managerName}</td>
+                        <td>${r['이용자명'] || '-'}</td>
+                        <td>${meetT}</td>
+                        <td>${retT}</td>
+                        <td>${durT}</td>
+                        <td class="text-right">${overWage > 0 ? overWage.toLocaleString() : '-'}</td>
+                        <td>${overWage > 0 ? sKey+'연장' : '-'}</td>
+                        <td>${overMinStr}</td>
+                    </tr>
+                `;
+            });
+
+            let totalOverHrs = Math.floor(totalOverMins / 60);
+            let remOverMins = totalOverMins % 60;
+            let totalOverTimeDisplay = totalOverHrs > 0 ? `${totalOverHrs}시간 ${remOverMins}분` : `${remOverMins}분`;
+
+            return `
+                <div class="timesheet-sheet" id="payslip-pdf-content" data-mtype="${managerType}" data-mname="${managerName}" data-month="${month}">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+                        <div>
+                            <div style="font-size:9.5px; margin-bottom:1px;">매니저 성명 : ${managerName} (인 또는 서명)</div>
+                            <div style="font-size:9.5px; margin-bottom:1px;">매니저 팀장 : &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (인 또는 서명)</div>
+                            <div style="font-size:9.5px;">행정관리자 : &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (인 또는 서명)</div>
+                        </div>
+                        <div style="text-align:right; font-size:9.5px;">
+                            하기 사실을 확인함.<br>
+                            ${currentYearStr}년 ${currentMonthStr}월 ${currentDateStr}일
+                        </div>
+                    </div>
+
+                    <div style="text-align:center; font-size:15px; font-weight:bold; margin: 10px 0 8px 0; letter-spacing:1px;">
+                        ${parseInt(yr)}년 ${intMo}월 근로기록부
+                    </div>
+
+                    <table class="payslip-sub-table" style="font-size:9px;">
+                        <thead>
+                            <tr>
+                                <th>동행일</th>
+                                <th>계약유형</th>
+                                <th>매니저명</th>
+                                <th>이용자명</th>
+                                <th>만남시간</th>
+                                <th>복귀시간</th>
+                                <th>소요시간</th>
+                                <th>연장수당</th>
+                                <th>근무형태</th>
+                                <th>연장시간</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+
+                    <div style="text-align: right; font-weight: bold; margin-top: 6px; font-size: 10.5px; display: flex; justify-content: flex-end; gap: 12px;">
+                        <span>연장시간 합계: <span style="color:var(--primary-color);">${totalOverTimeDisplay}</span></span>
+                        <span>합계 초과(연장) 수당: <span style="color:var(--success-color);">${totalOverWage.toLocaleString()}원</span></span>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    function generatePayslip() {
+        let month = document.getElementById('payslip-modal-month').value;
+        let managerName = document.getElementById('payslip-modal-manager').value;
+
+        if(!managerName) {
+            alert("매니저를 선택해주세요.");
+            return;
+        }
+
+        let managerRows = rawCalculatedData.filter(r => {
+            if(r['매니저명'] !== managerName) return false;
+            if(month && r['_rawMeetTime']) {
+                if(!r['_rawMeetTime'].startsWith(month)) return false;
+            }
+            return true;
+        });
+
+        if(managerRows.length === 0) {
+            alert(`선택한 기간(${month})에 ${managerName} 매니저의 동행 내역이 없습니다.`);
+            return;
+        }
+
+        // 📌 수정된 다음달 10일 자동 계산 로직 연동
+        let defaultPayDate = getNextMonth10th(month);
+        document.getElementById('payslip-custom-paydate').value = defaultPayDate;
+
+        let docHtml = buildDocumentHtml(managerName, month, managerRows, defaultPayDate);
+        let mType = document.createElement('div');
+        mType.innerHTML = docHtml;
+        let sheetEl = mType.firstElementChild;
+        let mTypeName = sheetEl.getAttribute('data-mtype');
+
+        if (mTypeName === '시간제') {
+            document.getElementById('payslip-date-edit-wrap').style.display = 'flex';
+        } else {
+            document.getElementById('payslip-date-edit-wrap').style.display = 'none';
+        }
+
+        document.getElementById('modal-view-title').innerText = mTypeName === '시간제' ? '📄 매니저 급여명세서 미리보기' : '📄 매니저 근로기록부 미리보기';
+        document.getElementById('payslip-print-area').innerHTML = docHtml;
+        
+        document.getElementById('quick-change-manager').value = managerName;
+
+        closePayslipSelectorModal();
+        document.getElementById('payslip-view-modal').style.display = 'flex';
+    }
+
+    function updatePayslipDateOnFly() {
+        let customVal = document.getElementById('payslip-custom-paydate').value;
+        let cell = document.getElementById('payslip-paydate-cell');
+        if(cell) {
+            cell.innerText = customVal;
+        }
+    }
+
+    function onQuickChangeManager(managerName) {
+        if(!managerName) return;
+        let month = document.getElementById('payslip-modal-month').value;
+        let customPayDate = document.getElementById('payslip-custom-paydate').value;
+
+        let managerRows = rawCalculatedData.filter(r => {
+            if(r['매니저명'] !== managerName) return false;
+            if(month && r['_rawMeetTime']) {
+                if(!r['_rawMeetTime'].startsWith(month)) return false;
+            }
+            return true;
+        });
+
+        if(managerRows.length === 0) {
+            alert(`선택한 기간(${month})에 ${managerName} 매니저의 동행 내역이 없습니다.`);
+            return;
+        }
+
+        let docHtml = buildDocumentHtml(managerName, month, managerRows, customPayDate);
+        let mType = document.createElement('div');
+        mType.innerHTML = docHtml;
+        let sheetEl = mType.firstElementChild;
+        let mTypeName = sheetEl.getAttribute('data-mtype');
+
+        if (mTypeName === '시간제') {
+            document.getElementById('payslip-date-edit-wrap').style.display = 'flex';
+        } else {
+            document.getElementById('payslip-date-edit-wrap').style.display = 'none';
+        }
+
+        document.getElementById('modal-view-title').innerText = mTypeName === '시간제' ? '📄 매니저 급여명세서 미리보기' : '📄 매니저 근로기록부 미리보기';
+        document.getElementById('payslip-print-area').innerHTML = docHtml;
+    }
+
+    async function downloadAllPayslipsPDF() {
+        let month = document.getElementById('payslip-modal-month').value;
+        
+        let managerSet = new Set();
+        rawCalculatedData.forEach(r => {
+            if(r['매니저명'] && r['매니저명'] !== '-') {
+                if(month && r['_rawMeetTime']) {
+                    if(r['_rawMeetTime'].startsWith(month)) {
+                        managerSet.add(r['매니저명']);
+                    }
+                } else {
+                    managerSet.add(r['매니저명']);
+                }
+            }
+        });
+
+        let managers = Array.from(managerSet);
+        if(managers.length === 0) {
+            alert("선택한 기간에 동행 내역이 있는 매니저가 없습니다.");
+            return;
+        }
+
+        if(!confirm(`선택한 월(${month})의 전체 매니저(${managers.length}명) 문서(급여명세서 및 근로기록부)를 일괄 생성하여 ZIP 파일로 다운로드하시겠습니까?`)) {
+            return;
+        }
+
+        if (typeof JSZip === 'undefined') {
+            alert("ZIP 라이브러리가 로드되지 않았습니다.");
+            return;
+        }
+
+        const btnZip = document.getElementById('btn-batch-zip');
+        const originalText = btnZip.innerHTML;
+        btnZip.innerHTML = `<p>⏳ 일괄 압축 생성 중...</p><span>대기 중 (0/${managers.length})</span>`;
+        btnZip.style.pointerEvents = 'none';
+
+        const zip = new JSZip();
+        
+        let renderBox = document.createElement('div');
+        renderBox.style.position = 'fixed';
+        renderBox.style.left = '0';
+        renderBox.style.top = '0';
+        renderBox.style.zIndex = '99999';
+        renderBox.style.background = '#fff';
+        renderBox.style.padding = '10px';
+        renderBox.style.opacity = '0.01';
+        renderBox.style.pointerEvents = 'none';
+        document.body.appendChild(renderBox);
+
+        let [yr, mo] = month.split('-');
+        let defaultPayDate = getNextMonth10th(month);
+        let successCount = 0;
+
+        for (let i = 0; i < managers.length; i++) {
+            let managerName = managers[i];
+            
+            btnZip.innerHTML = `<p>⏳ 일괄 압축 생성 중...</p><span>[${i+1}/${managers.length}] ${managerName}...</span>`;
+            await new Promise(r => setTimeout(r, 40));
+
+            let managerRows = rawCalculatedData.filter(r => {
+                if(r['매니저명'] !== managerName) return false;
+                if(month && r['_rawMeetTime']) {
+                    if(!r['_rawMeetTime'].startsWith(month)) return false;
+                }
+                return true;
+            });
+
+            if(managerRows.length === 0) continue;
+
+            let managerType = '시간제';
+            let matchedRow = managerRows.find(r => r['매니저구분'] && r['매니저구분'] !== '');
+            if (matchedRow) managerType = matchedRow['매니저구분'];
+
+            let slipHtml = buildDocumentHtml(managerName, month, managerRows, defaultPayDate);
+            renderBox.innerHTML = slipHtml;
+            const element = renderBox.firstElementChild;
+
+            await new Promise(resolve => setTimeout(resolve, 80));
+
+            const opt = {
+                margin:       10,
+                filename:     `doc_${managerName}.pdf`,
+                image:        { type: 'jpeg', quality: 0.95 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            try {
+                let pdfBlob = await html2pdf().from(element).set(opt).output('blob');
+                if (pdfBlob && pdfBlob.size > 0) {
+                    let docLabel = managerType === '시간제' ? '급여명세서' : '근로기록부';
+                    zip.file(`${yr}년_${mo}월_${docLabel}_[${managerType}]_${managerName}.pdf`, pdfBlob);
+                    successCount++;
+                }
+            } catch (err) {
+                console.error(`Error generating PDF for ${managerName}:`, err);
+            }
+        }
+
+        renderBox.remove();
+        btnZip.innerHTML = originalText;
+        btnZip.style.pointerEvents = 'auto';
+
+        if(successCount === 0) {
+            alert("생성된 PDF가 없습니다.");
+            return;
+        }
+
+        let content = await zip.generateAsync({type:"blob"});
+        let url = URL.createObjectURL(content);
+        let a = document.createElement('a');
+        a.href = url;
+        a.download = `서브온_${yr}년_${mo}월_전체매니저_출력문서서류.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        closePayslipSelectorModal();
+        alert(`총 ${successCount}명의 매니저 문서가 성공적으로 ZIP 파일로 압축 다운로드되었습니다.`);
+    }
+
+    function downloadPayslipPDF() {
+        const element = document.getElementById('payslip-pdf-content');
+        let managerName = element.getAttribute('data-mname') || '매니저';
+        let mType = element.getAttribute('data-mtype') || '시간제';
+        let month = element.getAttribute('data-month') || '2026-08';
+        let [yr, mo] = month.split('-');
+        let docLabel = mType === '시간제' ? '급여명세서' : '근로기록부';
+
+        const opt = {
+            margin:       10,
+            filename:     `${yr}년_${mo}월_${docLabel}_[${mType}]_${managerName}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        html2pdf().from(element).set(opt).save();
+    }
+
+    function exportReportToExcel(type) {
+        const wb = XLSX.utils.book_new();
+
+        if (type === 'summary' || type === 'all') {
+            let summaryData = [
+                { "항목": "총 정상동행 건수", "값": cachedSummaryData.normalCnt + " 건" },
+                { "항목": "시민요금", "값": cachedSummaryData.totalCitizen.toLocaleString() + " 원" },
+                { "항목": "상시 초과임금", "값": cachedSummaryData.totalFulltime.toLocaleString() + " 원" },
+                { "항목": "시간제 임금", "값": cachedSummaryData.totalParttime.toLocaleString() + " 원" },
+                { "항목": "수가 청구", "값": cachedSummaryData.totalService.toLocaleString() + " 원" },
+                { "항목": "전체 수익률 (시간제 기준)", "값": cachedSummaryData.totalMargin + "%" }
+            ];
+            const ws1 = XLSX.utils.json_to_sheet(summaryData);
+            XLSX.utils.book_append_sheet(wb, ws1, "총괄요약");
+        }
+
+        if (type === 'monthly' || type === 'all') {
+            const ws2 = XLSX.utils.json_to_sheet(cachedMonthlyData);
+            XLSX.utils.book_append_sheet(wb, ws2, "월별실적요약");
+        }
+
+        if (type === 'service' || type === 'all') {
+            const ws3 = XLSX.utils.json_to_sheet(cachedServiceData);
+            XLSX.utils.book_append_sheet(wb, ws3, "서비스별실적요약");
+        }
+
+        let filename = `서울시_임금정산_보고서_${type}.xlsx`;
+        XLSX.writeFile(wb, filename);
+    }
+
+    function normalizeStr(str) {
+        return String(str || '').replace(/\s+/g, '').toLowerCase();
+    }
+
+    function parseMins(val) {
+        if(!val) return 0;
+        const str = String(val).trim();
+        if(str.includes(':')) {
+            const p = str.split(':');
+            return (parseInt(p[0])||0)*60 + (parseInt(p[1])||0);
+        }
+        return parseInt(str)||0;
+    }
+
+    function formatDateTimeShort(val) {
+        if(!val) return '-';
+        let str = String(val).trim();
+        if(str.length >= 10) {
+            let dtPart = str.substring(5, 10).replace(/-/g, '-');
+            let timePart = '';
+            if(str.length >= 16) {
+                timePart = ' ' + str.substring(11, 16);
+            }
+            return dtPart + timePart;
+        }
+        return str;
+    }
+
+    function formatTimeHHMM(timeVal) {
+        if(!timeVal) return '-';
+        const str = String(timeVal).trim();
+        if(str.includes(':')) {
+            const parts = str.split(' ');
+            const timePart = parts.length > 1 ? parts[1] : parts[0];
+            const hhmm = timePart.split(':');
+            if(hhmm.length >= 2) {
+                return `${String(hhmm[0]).padStart(2,'0')}:${String(hhmm[1]).padStart(2,'0')}`;
+            }
+        }
+        return str;
+    }
+
+    function calculateTimeDiffMins(meetVal, returnVal, fallbackMins) {
+        if(!meetVal || !returnVal || meetVal === '-' || returnVal === '-') return fallbackMins;
+        
+        let start = new Date(meetVal);
+        let end = new Date(returnVal);
+
+        if(!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+            let diffMs = end - start;
+            let diffMins = Math.floor(diffMs / (1000 * 60));
+            return diffMins > 0 ? diffMins : fallbackMins;
+        }
+
+        let sMins = parseMins(meetVal);
+        let eMins = parseMins(returnVal);
+        if(eMins > sMins) return eMins - sMins;
+
+        return fallbackMins;
+    }
+
+    function isHolidayOrAltHoliday(dateObj) {
+        if (!dateObj || isNaN(dateObj.getTime())) return false;
+        
+        const year = dateObj.getFullYear();
+        const m = dateObj.getMonth() + 1;
+        const d = dateObj.getDate();
+        const mmdd = String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+        const yyyymmdd = `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+        if (manualHolidays[yyyymmdd]) return true;
+
+        const day = dateObj.getDay();
+        if (day === 0 || day === 6) return true;
+
+        const fixedHolidays = [
+            '01-01', '03-01', '05-05', '06-06', '08-15', '10-03', '10-09', '12-25'
+        ];
+
+        if (fixedHolidays.includes(mmdd)) return true;
+
+        for (let fh of fixedHolidays) {
+            let [fhM, fhD] = fh.split('-').map(Number);
+            let fhDate = new Date(year, fhM - 1, fhD);
+            let fhDay = fhDate.getDay();
+            
+            if (fhDay === 0 || fhDay === 6) {
+                let altDate = new Date(fhDate.getTime());
+                if (fhDay === 6) altDate.setDate(fhDate.getDate() + 2);
+                if (fhDay === 0) altDate.setDate(fhDate.getDate() + 1);
+                
+                if (dateObj.getFullYear() === altDate.getFullYear() &&
+                    dateObj.getMonth() === altDate.getMonth() &&
+                    dateObj.getDate() === altDate.getDate()) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    function roundToQuarterHour(totalMinutes) {
+        if (totalMinutes <= 0) return 0;
+        let hours = Math.floor(totalMinutes / 60);
+        let mins = totalMinutes % 60;
+        
+        let adjustedMins = 0;
+        if (mins >= 15 && mins <= 44) {
+            adjustedMins = 30;
+        } else if (mins >= 45) {
+            adjustedMins = 60;
+        } else {
+            adjustedMins = 0;
+        }
+        
+        return (hours * 60) + adjustedMins;
+    }
+
+    function calculateWageAndService(managerType, managerName, meetTimeRaw, returnTimeRaw, cancelTimeRaw, reqMins, isCancelCase, cancelType, isUnassigned) {
+        let res = {
+            partWeekday: 0,
+            partOver: 0,
+            partHoliday: 0,
+            partTotal: 0,
+            sangsiOver: 0,
+            svcWeekday: 0,
+            svcOver: 0,
+            svcHoliday: 0,
+            svcTotal: 0
+        };
+
+        if (isUnassigned || !managerName || managerName === '-') return res;
+
+        let startDt = new Date(meetTimeRaw);
+        let endDt = new Date(returnTimeRaw);
+        let isValidDates = !isNaN(startDt.getTime()) && !isNaN(endDt.getTime());
+
+        let cfg = getActiveConfig(meetTimeRaw);
+        const SERVICE_BASE_RATE = cfg.serviceRate; 
+        const PART_BASE_RATE = cfg.partWage;    
+        const SANGSI_BASE_HOURLY = cfg.sangsiWage; 
+        const MAX_ALLOWED_MINUTES = 570; // 9시간 30분
+
+        if (isCancelCase) {
+            let isFeeApplies = cancelType.includes('당일취소') || cancelType.includes('현장취소') || cancelType.includes('고객취소') || cancelType.includes('현장무료취소') || cancelType.includes('무료취소');
+
+            if (isFeeApplies) {
+                if (managerType === '시간제') {
+                    if (cancelType.includes('고객취소')) {
+                        res.partWeekday = 0;
+                        res.partTotal = 0;
+                        res.svcWeekday = 0;
+                        res.svcTotal = 0;
+                    } else {
+                        res.partWeekday = PART_BASE_RATE;
+                        res.partTotal = PART_BASE_RATE;
+                        res.svcWeekday = SERVICE_BASE_RATE;
+                        res.svcTotal = SERVICE_BASE_RATE;
+                    }
+                } else if (managerType === '상시') {
+                    if (cancelType.includes('고객취소') || cancelType.includes('당일취소') || cancelType.includes('현장취소')) {
+                        res.sangsiOver = 0;
+                    } else {
+                        res.sangsiOver = cfg.cancelFee;
+                    }
+                }
+            }
+            return res;
+        }
+
+        if (!isValidDates) {
+            let mins = reqMins || 0;
+            let isHoliday = isHolidayOrAltHoliday(new Date());
+
+            if (managerType === '시간제' && mins > MAX_ALLOWED_MINUTES) {
+                mins = MAX_ALLOWED_MINUTES; 
+            }
+            if (managerType === '시간제' && mins > 0 && mins <= 74) {
+                let wkMultiplier = 1 + cfg.partWeekendWeight;
+                if (isHoliday) {
+                    res.partHoliday = Math.round(PART_BASE_RATE * wkMultiplier);
+                    res.partTotal = res.partHoliday;
+                    res.svcHoliday = Math.round(SERVICE_BASE_RATE * wkMultiplier);
+                    res.svcTotal = res.svcHoliday;
+                } else {
+                    res.partWeekday = PART_BASE_RATE;
+                    res.partTotal = PART_BASE_RATE;
+                    res.svcWeekday = SERVICE_BASE_RATE;
+                    res.svcTotal = SERVICE_BASE_RATE;
+                }
+                return res;
+            }
+
+            let roundedMins = roundToQuarterHour(mins);
+            let hours = roundedMins / 60.0;
+            let wkMultiplier = 1 + cfg.partWeekendWeight;
+            if (managerType === '시간제') {
+                if (isHoliday) {
+                    res.partHoliday = Math.round(hours * PART_BASE_RATE * wkMultiplier);
+                    res.svcHoliday = Math.round(hours * SERVICE_BASE_RATE * wkMultiplier);
+                    res.partTotal = res.partHoliday;
+                    res.svcTotal = res.svcHoliday;
+                } else {
+                    res.partWeekday = Math.round(hours * PART_BASE_RATE);
+                    res.partTotal = res.partWeekday;
+                    res.svcWeekday = Math.round(hours * SERVICE_BASE_RATE);
+                    res.svcTotal = res.svcWeekday;
+                }
+            }
+            return res;
+        }
+
+        let isHoliday = isHolidayOrAltHoliday(startDt);
+        let totalActualMins = Math.floor((endDt - startDt) / (1000 * 60));
+        if (totalActualMins <= 0) return res;
+
+        if (managerType === '시간제') {
+            let effectiveEndDt = new Date(endDt.getTime());
+            if (totalActualMins > MAX_ALLOWED_MINUTES) {
+                totalActualMins = MAX_ALLOWED_MINUTES;
+                effectiveEndDt = new Date(startDt.getTime() + (MAX_ALLOWED_MINUTES * 60000));
+            }
+
+            if (totalActualMins <= 74) {
+                let wkMultiplier = 1 + cfg.partWeekendWeight;
+                if (isHoliday) {
+                    res.partHoliday = Math.round(PART_BASE_RATE * wkMultiplier);
+                    res.partTotal = res.partHoliday;
+                    res.svcHoliday = Math.round(SERVICE_BASE_RATE * wkMultiplier);
+                    res.svcTotal = res.svcHoliday;
+                } else {
+                    res.partWeekday = PART_BASE_RATE;
+                    res.partTotal = PART_BASE_RATE;
+                    res.svcWeekday = SERVICE_BASE_RATE;
+                    res.svcTotal = SERVICE_BASE_RATE;
+                }
+                return res;
+            }
+
+            if (isHoliday) {
+                let roundedTotalMins = roundToQuarterHour(totalActualMins);
+                let totalHours = roundedTotalMins / 60.0;
+                let wkMultiplier = 1 + cfg.partWeekendWeight;
+                res.partHoliday = Math.round(totalHours * PART_BASE_RATE * wkMultiplier);
+                res.svcHoliday = Math.round(totalHours * SERVICE_BASE_RATE * wkMultiplier);
+                res.partTotal = res.partHoliday;
+                res.svcTotal = res.svcHoliday;
+            } else {
+                let normalActualMins = 0;
+                let overActualMins = 0;
+
+                let curr = new Date(startDt.getTime());
+                while (curr < effectiveEndDt) {
+                    let hour = curr.getHours();
+                    if (hour >= 18) {
+                        overActualMins++;
+                    } else {
+                        normalActualMins++;
+                    }
+                    curr = new Date(curr.getTime() + 60000);
+                }
+
+                let sumActualMins = normalActualMins + overActualMins;
+                let roundedTotalMins = roundToQuarterHour(sumActualMins);
+                let totalHours = roundedTotalMins / 60.0;
+
+                let partOverMultiplier = 1 + cfg.partWeekdayWeight;
+                if (overActualMins > 0 && normalActualMins > 0) {
+                    let normalRatio = normalActualMins / sumActualMins;
+                    let overRatio = overActualMins / sumActualMins;
+
+                    res.partWeekday = Math.round(totalHours * PART_BASE_RATE * normalRatio);
+                    res.partOver = Math.round(totalHours * PART_BASE_RATE * partOverMultiplier * overRatio);
+
+                    res.svcWeekday = Math.round(totalHours * SERVICE_BASE_RATE * normalRatio);
+                    res.svcOver = Math.round(totalHours * SERVICE_BASE_RATE * partOverMultiplier * overRatio);
+                } else if (overActualMins > 0) {
+                    res.partOver = Math.round(totalHours * PART_BASE_RATE * partOverMultiplier);
+                    res.svcOver = Math.round(totalHours * SERVICE_BASE_RATE * partOverMultiplier);
+                } else {
+                    res.partWeekday = Math.round(totalHours * PART_BASE_RATE);
+                    res.svcWeekday = Math.round(totalHours * SERVICE_BASE_RATE);
+                }
+            }
+
+            res.partTotal = res.partWeekday + res.partOver + res.partHoliday;
+            res.svcTotal = res.svcWeekday + res.svcOver + res.svcHoliday;
+
+        } else if (managerType === '상시') {
+            if (isHoliday) {
+                res.sangsiOver = "대체휴무"; 
+            } else {
+                let isKimGuHyeon = normalizeStr(managerName).includes('김구현');
+                let normalEndHour = isKimGuHyeon ? 18 : 16;
+
+                let sangsiOverMins = 0;
+                let c = new Date(startDt.getTime());
+                while (c < endDt) {
+                    let h = c.getHours();
+                    if (h < 9 || h >= normalEndHour) {
+                        sangsiOverMins++;
+                    }
+                    c = new Date(c.getTime() + 60000);
+                }
+
+                if (sangsiOverMins > 0) {
+                    let startHour = startDt.getHours();
+                    let endHour = endDt.getHours();
+                    let isOnlyBeforeOrAfter = (startHour < 9 || startHour >= normalEndHour) && (endHour < 9 || endHour >= normalEndHour);
+
+                    if (sangsiOverMins < 60 && isOnlyBeforeOrAfter) {
+                        sangsiOverMins = 60;
+                    }
+                    let sangsiMultiplier = 1 + cfg.sangsiWeekdayWeight;
+                    res.sangsiOver = Math.round((sangsiOverMins / 60.0) * SANGSI_BASE_HOURLY * sangsiMultiplier);
+                } else {
+                    res.sangsiOver = 0;
+                }
+            }
+        }
+
+        return res;
+    }
+
+    function processManagerFile(file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const wb = XLSX.read(data, {type: 'array'});
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const json = XLSX.utils.sheet_to_json(sheet, {defval:""});
+
+            managerTypeMap = {};
+            let stats = { 상시: 0, 매력: 0, 노인: 0, 시간제: 0 };
+
+            json.forEach(row => {
+                for (let k in row) {
+                    const cleanK = normalizeStr(k);
+                    const nameVal = String(row[k] || '').trim();
+                    if (!nameVal) continue;
+
+                    let category = '';
+
+                    if (cleanK.includes('상시')) {
+                        category = '상시';
+                    } else if (cleanK.includes('매력')) {
+                        category = '매력';
+                    } else if (cleanK.includes('노인')) {
+                        category = '노인';
+                    }
+
+                    if (category && nameVal !== '예' && nameVal !== 'y' && nameVal !== '1') {
+                        const normName = normalizeStr(nameVal);
+                        managerTypeMap[normName] = category;
+                        managerTypeMap[nameVal] = category;
+                        stats[category] = (stats[category] || 0) + 1;
+                    }
+                }
+
+                let name = '';
+                for (let k in row) {
+                    const cleanK = normalizeStr(k);
+                    if (['매니저명', '성명', '이름', '매니저'].some(key => cleanK.includes(key))) {
+                        name = String(row[k]).trim();
+                        if (name) break;
+                    }
+                }
+
+                if (name) {
+                    let catFromRow = '시간제';
+                    for (let k in row) {
+                        const cleanK = normalizeStr(k);
+                        const val = normalizeStr(row[k]);
+                        const isYes = (val === '예' || val === 'y' || val === '1' || val === 'true');
+
+                        if (isYes) {
+                            if (cleanK.includes('상시')) { catFromRow = '상시'; break; }
+                            else if (cleanK.includes('매력')) { catFromRow = '매력'; break; }
+                            else if (cleanK.includes('노인')) { catFromRow = '노인'; break; }
+                        }
+                    }
+                    const normName = normalizeStr(name);
+                    if (catFromRow !== '시간제' || !managerTypeMap[normName]) {
+                        managerTypeMap[normName] = catFromRow;
+                        managerTypeMap[name] = catFromRow;
+                    }
+                }
+            });
+
+            document.getElementById('manager-file-status').innerText = 
+                `${file.name} (상시 ${stats.상시}/매력 ${stats.매력}/노인 ${stats.노인})`;
+
+            if(rawAdminRows) {
+                recalculateData();
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function processAdminFile(file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const wb = XLSX.read(data, {type: 'array'});
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            rawAdminRows = XLSX.utils.sheet_to_json(sheet, {defval:""});
+
+            recalculateData();
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function extractCategoryFromAdminRow(r) {
+        for (let k in r) {
+            const cleanK = normalizeStr(k);
+            const val = String(r[k] || '').trim();
+            const normVal = normalizeStr(val);
+
+            if (cleanK === '매니저구분' || cleanK === '매니저유형' || cleanK === '구분') {
+                if (normVal.includes('상시')) return '상시';
+                if (normVal.includes('매력')) return '매력';
+                if (normVal.includes('노인')) return '노인';
+            }
+
+            const isYes = (normVal === '예' || normVal === 'y' || normVal === '1' || normVal === 'true');
+            if (isYes) {
+                if (cleanK.includes('상시')) return '상시';
+                if (cleanK.includes('매력')) return '매력';
+                if (cleanK.includes('노인')) return '노인';
+            }
+        }
+        return '시간제';
+    }
+
+    function recalculateData() {
+        if(!rawAdminRows) return;
+
+        rawCalculatedData = rawAdminRows.map(r => {
+            let serviceKey = r['서비스키'] || r['서비스ID'] || r['접수번호'] || r['연계번호'] || r['NO'] || r['No'] || '-';
+
+            const birth = r['생년월일'] || r['이용자생년월일'] || r['나이'] || '-';
+            const user = r['이용자명'] || r['예약자명'] || '-';
+            let manager = String(r['매니저명'] || '').trim();
+            if(!manager) manager = '-';
+
+            let managerType = '';
+            if (manager !== '-') {
+                const normManager = normalizeStr(manager);
+                managerType = managerTypeMap[manager] || managerTypeMap[normManager];
+                if (!managerType) {
+                    managerType = extractCategoryFromAdminRow(r);
+                }
+            }
+
+            const applyTime = String(r['신청시간'] || '-').trim();
+
+            const isFreeVal = r['무료여부'];
+            const freeType = (String(isFreeVal).trim() === '1' || isFreeVal === 1) ? '무료' : '유료';
+
+            const meetTimeRaw = r['이용자만남'] || r['픽업시간'] || '';
+            const returnTimeRaw = r['복귀장소도착'] || '';
+            const cancelTimeRaw = r['취소일시'] || '';
+
+            const meetTimeDisplay = formatDateTimeShort(meetTimeRaw);
+            const returnTimeDisplay = formatTimeHHMM(returnTimeRaw);
+            const cancelTimeDisplay = formatDateTimeShort(cancelTimeRaw);
+
+            let meetDt = new Date(meetTimeRaw);
+            let isMeetHoliday = isHolidayOrAltHoliday(meetDt);
+
+            const cancel = String(r['취소구분'] || '').trim();
+            const stage = String(r['동행단계'] || '').trim();
+
+            const isUnassigned = (stage === '미배정' || r['미배정여부'] === '미배정');
+            const isCancelCase = cancel.includes('고객취소') || cancel.includes('당일취소') || cancel.includes('현장취소') || cancel.includes('무료취소') || cancel !== '';
+
+            let reqMinsFallback = parseMins(r['신청시간'] || r['실제동행시간'] || 0);
+            let durationDisplay = '';
+            let actualMins = 0;
+
+            if (!isUnassigned && !isCancelCase) {
+                actualMins = calculateTimeDiffMins(meetTimeRaw, returnTimeRaw, reqMinsFallback);
+                if (actualMins > 0) {
+                    const hrs = Math.floor(actualMins / 60);
+                    const remMins = actualMins % 60;
+                    durationDisplay = `${String(hrs).padStart(2, '0')}:${String(remMins).padStart(2, '0')}`;
+                }
+            }
+
+            let reqMinsTotal = parseMins(applyTime);
+            let isDurationShortage = (!isUnassigned && !isCancelCase && actualMins > 0 && reqMinsTotal > 0 && actualMins < reqMinsTotal);
+
+            let rawFee = parseInt(r['실제동행비용'] || r['신청비용'] || r['결제금액'] || r['이용요금'] || r['금액'] || 0, 10) || 0;
+            let activeCfg = getActiveConfig(meetTimeRaw);
+
+            let fee = 0;
+            if (isUnassigned) {
+                fee = 0;
+            } else if (cancel.includes('고객취소')) {
+                fee = 0;
+            } else if (isCancelCase) {
+                if (cancel.includes('당일취소') || cancel.includes('현장취소')) {
+                    fee = activeCfg.cancelFee;
+                } else if (cancel.includes('현장무료취소')) {
+                    fee = 0;
+                } else {
+                    fee = activeCfg.cancelFee;
+                }
+            } else {
+                if (freeType === '무료') {
+                    fee = 0;
+                } else {
+                    if (rawFee > 0) {
+                        fee = rawFee > 57000 ? 57000 : rawFee;
+                    } else {
+                        let calcMins = (actualMins > 0 ? actualMins : reqMinsFallback);
+                        if (calcMins > 570) calcMins = 570;
+                        let roundedCalcMins = roundToQuarterHour(calcMins);
+                        let hours = roundedCalcMins / 60.0;
+                        let baseCitizenRate = activeCfg.citizenFee || 6000; 
+                        let calculatedFee = Math.round(hours * baseCitizenRate);
+                        fee = calculatedFee > 57000 ? 57000 : calculatedFee;
+                    }
+                }
+            }
+
+            const calcRes = calculateWageAndService(managerType, manager, meetTimeRaw, returnTimeRaw, cancelTimeRaw, actualMins || reqMinsFallback, isCancelCase, cancel, isUnassigned);
+
+            const payMethod = String(r['결제수단'] || '').trim();
+            let cardPay = 0;
+            let bankPay = 0;
+
+            if (payMethod.includes('카드')) {
+                cardPay = fee;
+            } else if (payMethod.includes('계좌') || payMethod.includes('계좌이체')) {
+                bankPay = fee;
+            }
+
+            let isCustomerCancelWithin5Hours = false;
+            if (cancel.includes('고객취소') && meetTimeRaw && cancelTimeRaw) {
+                let meetDtObj = new Date(meetTimeRaw);
+                let cancelDtObj = new Date(cancelTimeRaw);
+                if (!isNaN(meetDtObj.getTime()) && !isNaN(cancelDtObj.getTime())) {
+                    let diffMs = meetDtObj - cancelDtObj;
+                    let diffHours = diffMs / (1000 * 60 * 60);
+                    if (diffHours >= 0 && diffHours <= 5) {
+                        isCustomerCancelWithin5Hours = true;
+                    }
+                }
+            }
+
+            let departmentVal = r['진료과'] || r['방문진료과'] || r['진료과목'] || '';
+
+            return {
+                "_rawMeetTime": meetTimeRaw,
+                "_isMeetHoliday": isMeetHoliday,
+                "_actualMins": (isCancelCase || isUnassigned) ? 0 : (actualMins || reqMinsFallback),
+                "_isCustomerCancelWithin5Hours": isCustomerCancelWithin5Hours,
+                "_isDurationShortage": isDurationShortage,
+                "_rawHospital": r['병원명'] || r['방문병원'] || '',
+                "_rawPurpose": r['이용목적'] || r['방문목적'] || '',
+                "_rawDepartment": departmentVal,
+                "서비스키": serviceKey,
+                "매니저구분": managerType,
+                "매니저명": manager,
+                "이용자명": user,
+                "유무료 구분": freeType,
+                "생년월일": birth, 
+                "신청시간": applyTime,
+                "소요시간": durationDisplay, 
+                "만남시간": meetTimeDisplay, 
+                "복귀시간": returnTimeDisplay, 
+                "미배정": isUnassigned ? '미배정' : '',
+                "취소형태": cancel, 
+                "취소일시": cancelTimeDisplay,
+                "카드": cardPay, 
+                "계좌": bankPay,
+                "시민요금": fee, 
+                "상시초과임금": calcRes.sangsiOver,
+                "시간제 평일": calcRes.partWeekday,
+                "시간제 평일초과": calcRes.partOver,
+                "시간제 공휴일/주말": calcRes.partHoliday,
+                "시간제 총임금": calcRes.partTotal,
+                "서비스수가 평일": calcRes.svcWeekday,
+                "서비스수가 평일초과": calcRes.svcOver,
+                "서비스수가 공휴일/주말": calcRes.svcHoliday,
+                "서비스수가 총청구": calcRes.svcTotal
+            };
+        });
+
+        rawCalculatedData.sort((a, b) => {
+            let tA = new Date(a._rawMeetTime).getTime() || 0;
+            let tB = new Date(b._rawMeetTime).getTime() || 0;
+            return tA - tB;
+        });
+
+        document.getElementById('filter-section').style.display = 'flex';
+        document.getElementById('summary-dashboard').style.display = 'flex';
+        document.getElementById('table-wrapper').style.display = 'block';
+
+        applyFilters();
+    }
+
+    function filterByDashboard(metricType) {
+        activeDashboardMetric = metricType;
+        const statusSelect = document.getElementById('filter-status');
+        
+        if (metricType === '전체') {
+            activeDashboardMetric = null;
+            statusSelect.value = '';
+        } else if (['정상', '고객취소', '당일취소', '현장취소', '현장무료취소', '미배정'].includes(metricType)) {
+            statusSelect.value = metricType;
+        } else {
+            statusSelect.value = '';
+        }
+        applyFilters();
+    }
+
+    function applyFilters() {
+        const selectedMonth = document.getElementById('filter-month').value;
+        const selectedDateRange = document.getElementById('filter-date-range').value;
+        const selectedServiceKey = document.getElementById('filter-service-key').value.toLowerCase().trim();
+        const searchManagerName = document.getElementById('filter-manager-name').value.toLowerCase().trim();
+        const selectedManagerType = document.getElementById('filter-manager-type').value;
+        const selectedApplyTime = document.getElementById('filter-apply-time').value;
+        const selectedDurationRange = document.getElementById('filter-duration-range').value;
+        const selectedPayMethod = document.getElementById('filter-pay-method').value;
+        const selectedStatus = document.getElementById('filter-status').value;
+        const searchUser = document.getElementById('filter-user').value.toLowerCase().trim();
+        const selectedFreeType = document.getElementById('filter-free-type').value;
+
+        filteredData = rawCalculatedData.filter(item => {
+            if (selectedMonth) {
+                if (item._rawMeetTime) {
+                    let itemMonthStr = item._rawMeetTime.substring(0, 7);
+                    if (itemMonthStr !== selectedMonth) return false;
+                } else {
+                    return false;
+                }
+            }
+
+            if (selectedDateRange) {
+                if (!item._rawMeetTime) return false;
+                let itemDateStr = item._rawMeetTime.substring(0, 10);
+                
+                if (selectedDateRange.length === 7) {
+                    if (!itemDateStr.startsWith(selectedDateRange)) return false;
+                } else if (selectedDateRange === 'year2026') {
+                    if (!itemDateStr.startsWith('2026')) return false;
+                } else if (selectedDateRange === 'year2027') {
+                    if (!itemDateStr.startsWith('2027')) return false;
+                } else if (selectedDateRange === 'recent30') {
+                    let itemDt = new Date(itemDateStr);
+                    let nowDt = new Date('2026-09-27');
+                    let diffDays = (nowDt - itemDt) / (1000 * 60 * 60 * 24);
+                    if (diffDays < 0 || diffDays > 30) return false;
+                }
+            }
+
+            if (selectedServiceKey && !String(item['서비스키']).toLowerCase().includes(selectedServiceKey)) return false;
+
+            if (searchManagerName && !item['매니저명'].toLowerCase().includes(searchManagerName)) return false;
+            if (selectedManagerType && item['매니저구분'] !== selectedManagerType) return false;
+            if (selectedApplyTime && !item['신청시간'].includes(selectedApplyTime)) return false;
+
+            if (selectedDurationRange) {
+                let mins = item._actualMins || 0;
+                let targetVal = parseFloat(selectedDurationRange);
+
+                if (mins <= 0) return false; 
+
+                if (targetVal === 1.0) {
+                    if (mins > 60) return false; 
+                } else if (targetVal === 9.5) {
+                    if (mins < 570) return false; 
+                } else {
+                    let minThreshold = targetVal * 60;        
+                    let maxThreshold = minThreshold + 30;     
+                    if (mins < minThreshold || mins >= maxThreshold) return false;
+                }
+            }
+
+            if (selectedPayMethod === '카드' && (item['카드'] <= 0)) return false;
+            if (selectedPayMethod === '계좌' && (item['계좌'] <= 0)) return false;
+
+            if (selectedStatus === '정상' && (item['취소형태'] !== '' || item['미배정'] === '미배정')) return false;
+            if (selectedStatus === '미배정' && item['미배정'] !== '미배정') return false;
+            if (selectedStatus !== '' && selectedStatus !== '정상' && selectedStatus !== '미배정') {
+                if (!item['취소형태'].includes(selectedStatus)) return false;
+            }
+
+            if (searchUser && !item['이용자명'].toLowerCase().includes(searchUser)) return false;
+            if (selectedFreeType && item['유무료 구분'] !== selectedFreeType) return false;
+
+            if (activeDashboardMetric === '시민이용료') {
+                if ((item['시민요금'] || 0) <= 0) return false;
+            } else if (activeDashboardMetric === '시간제총임금') {
+                if ((item['시간제 총임금'] || 0) <= 0) return false;
+            } else if (activeDashboardMetric === '상시초과임금') {
+                let sVal = item['상시초과임금'];
+                let hasVal = (typeof sVal === 'number' && sVal > 0) || sVal === '대체휴무';
+                if (!hasVal) return false;
+            } else if (activeDashboardMetric === '수가총청구액') {
+                if ((item['서비스수가 총청구'] || 0) <= 0) return false;
+            }
+
+            return true;
+        });
+
+        document.getElementById('search-count-badge').innerText = `조회 건수: ${filteredData.length.toLocaleString()} 건`;
+
+        updateSummaryDashboard(filteredData);
+        renderTable(filteredData);
+    }
+
+    function updateSummaryDashboard(data) {
+        let totalCitizen = 0, totalParttime = 0, totalFulltime = 0, totalService = 0;
+        let normalCnt = 0, custCancelCnt = 0, todayCancelCnt = 0, siteCancelCnt = 0, siteFreeCnt = 0, unassignedCnt = 0;
+
+        data.forEach(r => {
+            totalCitizen += r['시민요금'] || 0;
+            totalParttime += r['시간제 총임금'] || 0;
+            
+            let fullTimeVal = r['상시초과임금'];
+            if(typeof fullTimeVal === 'number') {
+                totalFulltime += fullTimeVal;
+            }
+
+            totalService += r['서비스수가 총청구'] || 0;
+
+            const c = r['취소형태'] || '';
+            const un = r['미배정'] || '';
+
+            if (un === '미배정') {
+                unassignedCnt++;
+            } else if (c.includes('고객취소')) {
+                custCancelCnt++;
+            } else if (c.includes('당일취소')) {
+                todayCancelCnt++;
+            } else if (c.includes('현장무료취소')) {
+                siteFreeCnt++;
+            } else if (c.includes('현장취소')) {
+                siteCancelCnt++;
+            } else if (c === '') {
+                normalCnt++;
+            }
+        });
+
+        document.getElementById('sum-count').innerText = data.length.toLocaleString() + ' 건';
+        document.getElementById('sum-normal-cnt').innerText = normalCnt.toLocaleString() + ' 건';
+        document.getElementById('sum-cust-cancel-cnt').innerText = custCancelCnt.toLocaleString() + ' 건';
+        document.getElementById('sum-today-cancel-cnt').innerText = todayCancelCnt.toLocaleString() + ' 건';
+        document.getElementById('sum-site-cancel-cnt').innerText = siteCancelCnt.toLocaleString() + ' 건';
+        document.getElementById('sum-site-free-cnt').innerText = siteFreeCnt.toLocaleString() + ' 건';
+        document.getElementById('sum-unassigned-cnt').innerText = unassignedCnt.toLocaleString() + ' 건';
+
+        document.getElementById('sum-citizen').innerText = totalCitizen.toLocaleString() + ' 원';
+        document.getElementById('sum-parttime').innerText = totalParttime.toLocaleString() + ' 원';
+        document.getElementById('sum-fulltime').innerText = totalFulltime.toLocaleString() + ' 원';
+        document.getElementById('sum-service').innerText = totalService.toLocaleString() + ' 원';
+    }
+
+    function formatHeaderTitle(key) {
+        const headerMap = {
+            "서비스키": "서비스<br>키",
+            "생년월일": "생년<br>월일",
+            "유무료 구분": "유무료<br>구분",
+            "신청시간": "신청<br>시간",
+            "소요시간": "소요<br>시간",
+            "만남시간": "만남<br>시간",
+            "복귀시간": "복귀<br>시간",
+            "취소형태": "취소<br>형태",
+            "취소일시": "취소<br>일시",
+            "카드": "카드",
+            "계좌": "계좌",
+            "시민요금": "시민<br>요금",
+            "상시초과임금": "상시초과<br>임금",
+            "시간제 평일": "시간제<br>평일",
+            "시간제 평일초과": "시간제<br>평일초과",
+            "시간제 공휴일/주말": "시간제<br>공휴/주말",
+            "시간제 총임금": "시간제<br>총임금",
+            "서비스수가 평일": "수가<br>평일",
+            "서비스수가 평일초과": "수가<br>평일초과",
+            "서비스수가 공휴일/주말": "수가<br>공휴/주말",
+            "서비스수가 총청구": "수가<br>총청구"
+        };
+        return headerMap[key] || key;
+    }
+
+    function renderTable(data) {
+        const tbody = document.getElementById('table-body');
+        const headerRow = document.getElementById('header-columns-row');
+        tbody.innerHTML = '';
+        headerRow.innerHTML = '';
+
+        if(!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="25" style="padding:15px;">조건에 일치하는 정산 데이터가 없습니다.</td></tr>';
+            return;
+        }
+
+        const keys = Object.keys(data[0]).filter(k => !k.startsWith('_'));
+        
+        keys.forEach(k => {
+            const th = document.createElement('th');
+            th.innerHTML = formatHeaderTitle(k);
+
+            if(k === '매니저구분') th.className = 'col-manager-type';
+            if(k === '소요시간') th.classList.add('col-duration-bg');
+            if(k === '서비스키') th.classList.add('col-service-key');
+            if(k === '매니저명') th.classList.add('col-manager-name');
+            if(k === '이용자명') th.classList.add('col-user-name');
+            if(k === '만남시간') th.classList.add('col-datetime-compact');
+            if(k === '취소일시') th.classList.add('col-cancel-time');
+            if(k === '취소형태') th.className = 'col-cancel-type';
+
+            if(['카드', '계좌', '시민요금', '상시초과임금', '시간제 평일', '시간제 평일초과', '시간제 공휴일/주말', '시간제 총임금', '서비스수가 평일', '서비스수가 평일초과', '서비스수가 공휴일/주말', '서비스수가 총청구'].includes(k)) {
+                th.classList.add('col-wide-amount');
+            }
+
+            if(k === '취소일시') th.classList.add('border-section-right');
+            if(k === '카드') th.classList.add('border-section-left');
+            if(k === '상시초과임금') th.classList.add('border-section-left', 'border-section-right');
+            if(k === '시간제 총임금') th.classList.add('border-section-right');
+            if(k === '서비스수가 평일') th.classList.add('border-section-left');
+
+            headerRow.appendChild(th);
+        });
+
+        data.forEach(row => {
+            const tr = document.createElement('tr');
+            keys.forEach(k => {
+                const td = document.createElement('td');
+                let val = row[k];
+
+                if(k === '매니저구분') td.className = 'col-manager-type';
+                if(k === '소요시간') td.classList.add('col-duration-bg');
+                if(k === '서비스키') td.classList.add('col-service-key');
+                if(k === '매니저명') td.classList.add('col-manager-name');
+                if(k === '이용자명') td.classList.add('col-user-name');
+                if(k === '만남시간') td.classList.add('col-datetime-compact');
+                if(k === '취소일시') {
+                    td.classList.add('col-cancel-time');
+                    if(val && val !== '-') {
+                        td.classList.add('text-red');
+                    }
+                }
+
+                if(['카드', '계좌', '시민요금', '상시초과임금', '시간제 평일', '시간제 평일초과', '시간제 공휴일/주말', '시간제 총임금', '서비스수가 평일', '서비스수가 평일초과', '서비스수가 공휴일/주말', '서비스수가 총청구'].includes(k)) {
+                    td.classList.add('col-wide-amount');
+                }
+
+                if(k === '취소일시') td.classList.add('border-section-right');
+                if(k === '카드') td.classList.add('border-section-left');
+                if(k === '상시초과임금') td.classList.add('border-section-left', 'border-section-right');
+                if(k === '시간제 총임금') td.classList.add('border-section-right');
+                if(k === '서비스수가 평일') td.classList.add('border-section-left');
+
+                if(k === '상시초과임금') {
+                    if(val === '대체휴무') {
+                        td.innerHTML = `<span class="badge-sub-off">대체휴무</span>`;
+                    } else if(typeof val === 'number' && val > 0) {
+                        td.innerText = val.toLocaleString();
+                        td.className += ' text-right text-red';
+                    } else {
+                        td.innerText = '0';
+                    }
+                } else if(typeof val === 'number' && (k.includes('요금') || k.includes('임금') || k.includes('청구') || k.includes('수가') || k.includes('시간제') || k === '카드' || k === '계좌')) {
+                    td.innerText = val.toLocaleString();
+                    td.className += ' text-right';
+                    
+                    if((k === '시간제 평일초과' || k === '시간제 공휴일/주말' || k === '서비스수가 평일초과' || k === '서비스수가 공휴일/주말') && val > 0) {
+                        td.classList.add('text-red');
+                    }
+                    if(k === '시민요금' && row._isCustomerCancelWithin5Hours && val > 0) {
+                        td.classList.add('text-red');
+                    }
+                } else if(k === '취소형태') {
+                    td.classList.add('col-cancel-type');
+                    if (val) {
+                        td.innerHTML = `<span class="badge-cancel">${val}</span>`;
+                    } else {
+                        td.innerText = '-';
+                    }
+                } else if(k === '미배정' && val) {
+                    td.innerHTML = `<span class="badge-unassigned">${val}</span>`;
+                } else if(k === '유무료 구분') {
+                    td.innerHTML = val === '무료' ? `<span class="badge-free">무료</span>` : `<span class="badge-paid">유료</span>`;
+                } else if(k === '매니저구분') {
+                    if (val === '상시') {
+                        td.innerHTML = `<span class="badge-manager-sangsi">상시</span>`;
+                    } else if (val === '매력') {
+                        td.innerHTML = `<span class="badge-manager-maeryeok">매력</span>`;
+                    } else if (val === '노인') {
+                        td.innerHTML = `<span class="badge-manager-noin">노인</span>`;
+                    } else if (val === '시간제') {
+                        td.innerHTML = `<span class="badge-manager-part">시간제</span>`;
+                    } else {
+                        td.innerText = '-';
+                    }
+                } else if(k === '만남시간') {
+                    td.innerText = val;
+                    if(row._isMeetHoliday) {
+                        td.classList.add('text-red');
+                    }
+                } else if(k === '소요시간') {
+                    td.innerText = val;
+                    if(row._isDurationShortage) {
+                        td.classList.add('text-red');
+                    }
+                } else {
+                    td.innerText = val;
+                }
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+    }
+
+    function exportToExcel() {
+        if(!filteredData || filteredData.length === 0) {
+            alert("내보낼 데이터가 없습니다.");
+            return;
+        }
+        
+        const exportData = filteredData.map(item => {
+            let cleanObj = {};
+            Object.keys(item).forEach(k => {
+                if(!k.startsWith('_')) {
+                    cleanObj[k] = item[k];
+                }
+            });
+            return cleanObj;
+        });
+
+        try {
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "정산결과");
+            XLSX.writeFile(wb, "서울시_임금정산_결과.xlsx");
+        } catch (err) {
+            console.error("Excel export error:", err);
+            alert("엑셀 다운로드 중 오류가 발생했습니다.");
+        }
+    }
+</script>
+</body>
+</html>
